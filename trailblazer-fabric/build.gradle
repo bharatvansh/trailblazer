@@ -20,9 +20,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
 
-    def apiProject = rootProject.project(':trailblazer-api')
-    implementation group: apiProject.group, name: 'trailblazer-api', version: apiProject.version
-    modImplementation include(group: apiProject.group, name: 'trailblazer-api', version: apiProject.version)
+    implementation project(':trailblazer-api')
 }
 
 // It finds the task that failed ('processIncludeJars') and explicitly tells it
