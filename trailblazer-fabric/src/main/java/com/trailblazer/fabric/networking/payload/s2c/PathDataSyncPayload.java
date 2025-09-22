@@ -21,7 +21,7 @@ public record PathDataSyncPayload(String json) implements CustomPayload {
     public static final PacketCodec<RegistryByteBuf, PathDataSyncPayload> CODEC = new PacketCodec<>() {
         @Override
         public PathDataSyncPayload decode(RegistryByteBuf buf) {
-            int len = buf.readVarInt();
+            int len = buf.readableBytes();
             byte[] bytes = new byte[len];
             buf.readBytes(bytes);
             return new PathDataSyncPayload(new String(bytes, StandardCharsets.UTF_8));

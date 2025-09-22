@@ -21,16 +21,15 @@ import com.trailblazer.api.Vector3d;
 import com.trailblazer.plugin.PathDataManager;
 import com.trailblazer.plugin.PathRecordingManager;
 import com.trailblazer.plugin.TrailblazerPlugin;
+import com.trailblazer.plugin.networking.payload.c2s.HandshakePayload;
+import com.trailblazer.plugin.networking.payload.c2s.ToggleRecordingPayload;
+import com.trailblazer.plugin.networking.payload.s2c.HideAllPathsPayload;
+import com.trailblazer.plugin.networking.payload.s2c.PathDataSyncPayload;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 public class ServerPacketHandler implements Listener, PluginMessageListener {
-
-    private static final String S2C_SYNC_CHANNEL = "trailblazer:sync_path_data";
-    private static final String S2C_HIDE_ALL_CHANNEL = "trailblazer:hide_all_paths";
-    private static final String C2S_TOGGLE_CHANNEL = "trailblazer:toggle_recording";
-    private static final String C2S_HANDSHAKE_CHANNEL = "trailblazer:handshake";
 
     private final TrailblazerPlugin plugin;
     private final Gson gson = new Gson();
@@ -45,15 +44,15 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         this.dataManager = plugin.getPathDataManager();
 
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, S2C_SYNC_CHANNEL);
-        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, S2C_HIDE_ALL_CHANNEL);
-        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, C2S_TOGGLE_CHANNEL, this);
-        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, C2S_HANDSHAKE_CHANNEL, this);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathDataSyncPayload.ID.toString());
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, HideAllPathsPayload.ID.toString());
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ToggleRecordingPayload.ID.toString(), this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.ID.toString(), this);
     }
 
     @Override
     public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, @NotNull byte[] message) {
-        if (channel.equalsIgnoreCase(C2S_HANDSHAKE_CHANNEL)) {
+        if (channel.equalsIgnoreCase(HandshakePayload.ID.toString())) {
             moddedPlayers.add(player.getUniqueId());
             TrailblazerPlugin.getPluginLogger().info("Successful handshake. Trailblazer client mod confirmed for player: " + player.getName());
 
@@ -73,7 +72,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             return;
         }
 
-        if (channel.equalsIgnoreCase(C2S_TOGGLE_CHANNEL)) {
+        if (channel.equalsIgnoreCase(ToggleRecordingPayload.ID.toString())) {
             // ... (The toggle logic remains unchanged)
             if (recordingManager.isRecording(player)) {
                 List<Vector3d> recordedPoints = recordingManager.stopRecording(player);
@@ -119,27 +118,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
         String json = gson.toJson(paths);
         byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
-        byte[] packetData = createVarIntPrefixedData(jsonBytes);
-        player.sendPluginMessage(plugin, S2C_SYNC_CHANNEL, packetData);
-    }
-
-    private byte[] createVarIntPrefixedData(byte[] data) {
-        int length = data.length;
-        byte[] lengthBytes = encodeVarInt(length);
-        byte[] result = new byte[lengthBytes.length + data.length];
-        System.arraycopy(lengthBytes, 0, result, 0, lengthBytes.length);
-        System.arraycopy(data, 0, result, lengthBytes.length, data.length);
-        return result;
-    }
-
-    private byte[] encodeVarInt(int value) {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        while ((value & 0xFFFFFF80) != 0) {
-            out.write((value & 0x7F) | 0x80);
-            value >>>= 7;
-        }
-        out.write(value & 0x7F);
-        return out.toByteArray();
+        player.sendPluginMessage(plugin, PathDataSyncPayload.ID.toString(), jsonBytes);
     }
 
     // The onPlayerJoin event is now only used for cleanup, not detection.
@@ -164,7 +143,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
      */
     public void sendHideAllPaths(Player player) {
         if (!isModdedPlayer(player)) return;
-        // This packet has no data, so we send an empty byte array.
-        player.sendPluginMessage(plugin, S2C_HIDE_ALL_CHANNEL, new byte[1]);
+        // This packet has no data, but the client expects to read at least one byte.
+        player.sendPluginMessage(plugin, HideAllPathsPayload.ID.toString(), new byte[1]);
     }
 }

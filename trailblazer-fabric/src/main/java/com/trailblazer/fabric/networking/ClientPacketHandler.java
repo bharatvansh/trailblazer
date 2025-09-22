@@ -35,7 +35,7 @@ public class ClientPacketHandler {
                 }
                 receivedPaths = parsed;
             } catch (Exception e) {
-                TrailblazerFabricClient.LOGGER.error("Failed to parse PathData JSON from server: " + e.getMessage());
+                TrailblazerFabricClient.LOGGER.error("Failed to parse PathData JSON from server:", e);
                 return;
             }
 
