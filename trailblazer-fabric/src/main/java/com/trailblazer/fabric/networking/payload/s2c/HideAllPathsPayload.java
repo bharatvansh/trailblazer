@@ -15,7 +15,21 @@ public record HideAllPathsPayload() implements CustomPayload {
 
     public static final Id<HideAllPathsPayload> ID = new Id<>(Identifier.of(TrailblazerFabricClient.MOD_ID, "hide_all_paths"));
 
-    public static final PacketCodec<RegistryByteBuf, HideAllPathsPayload> CODEC = PacketCodec.unit(new HideAllPathsPayload());
+    public static final PacketCodec<RegistryByteBuf, HideAllPathsPayload> CODEC = new PacketCodec<RegistryByteBuf, HideAllPathsPayload>() {
+        @Override
+        public HideAllPathsPayload decode(RegistryByteBuf buf) {
+            // The server sends a single byte for legacy reasons. We must read it.
+            if (buf.readableBytes() > 0) {
+                buf.readByte();
+            }
+            return new HideAllPathsPayload();
+        }
+
+        @Override
+        public void encode(RegistryByteBuf buf, HideAllPathsPayload value) {
+            // Nothing to write.
+        }
+    };
 
     @Override
     public Id<? extends CustomPayload> getId() {
