@@ -1,0 +1,13 @@
+# This file is REQUIRED for the server to recognize and load our plugin.
+name: Trailblazer
+version: ${version} # This will be automatically replaced by the version in build.gradle
+main: com.trailblazer.plugin.TrailblazerPlugin # The main class of our plugin (we will create this next)
+api-version: '1.21'
+author: Ayush
+description: A mod for sharing player paths.
+# --- ADD THIS ENTIRE BLOCK ---
+commands:
+  path:
+    description: Main command for the Trailblazer plugin.
+    usage: /<command> [subcommand]
+# --- END ADDITION ---

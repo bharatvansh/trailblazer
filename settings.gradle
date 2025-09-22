@@ -1,0 +1,17 @@
+// This block tells Gradle WHERE to look for the plugins themselves (like fabric-loom).
+// This is the crucial part that was missing.
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        // This is the line that fixes the error. It points to Fabric's repository.
+        maven { url = 'https://maven.fabricmc.net/' }
+    }
+}
+
+// This part defines the name of the root project and includes all the sub-modules.
+rootProject.name = 'Trailblazer'
+
+include 'trailblazer-api'
+include 'trailblazer-plugin'
+include 'trailblazer-fabric'

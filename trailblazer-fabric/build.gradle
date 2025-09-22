@@ -1,0 +1,51 @@
+plugins {
+    // Using the version you confirmed works
+    id 'fabric-loom' version '1.10-SNAPSHOT'
+}
+
+version = rootProject.mod_version
+sourceCompatibility = JavaVersion.VERSION_21
+
+repositories {
+    maven { url 'https://maven.fabricmc.net/' }
+    mavenCentral()
+    flatDir {
+        dirs rootProject.project(':trailblazer-api').layout.buildDirectory.dir('libs')
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+    mappings "net.fabricmc:yarn:${rootProject.yarn_mappings_version}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+
+    def apiProject = rootProject.project(':trailblazer-api')
+    implementation group: apiProject.group, name: 'trailblazer-api', version: apiProject.version
+    modImplementation include(group: apiProject.group, name: 'trailblazer-api', version: apiProject.version)
+}
+
+// It finds the task that failed ('processIncludeJars') and explicitly tells it
+// that it must wait until the API module's jar task is complete.
+tasks.named('processIncludeJars').configure {
+    dependsOn rootProject.project(':trailblazer-api').tasks.named('jar')
+}
+
+processResources {
+    inputs.property "version", rootProject.mod_version
+    inputs.property "minecraft_version", rootProject.minecraft_version
+    inputs.property "fabric_loader_version", rootProject.fabric_loader_version
+
+    filesMatching("fabric.mod.json") {
+        expand(
+                "version": rootProject.mod_version,
+                "minecraft_version": rootProject.minecraft_version,
+                "fabric_loader_version": rootProject.fabric_loader_version
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    it.options.release = 21
+}

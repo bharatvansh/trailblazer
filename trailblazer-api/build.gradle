@@ -1,0 +1,4 @@
+// This module is a pure Java library. It has no dependencies on Minecraft, Spigot, or Fabric.
+// This ensures that both the plugin and the mod can use its classes.
+
+// No extra configuration is needed here for now.

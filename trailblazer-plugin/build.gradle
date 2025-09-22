@@ -1,0 +1,35 @@
+plugins {
+    // This applies the shadow plugin, which bundles our libraries.
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+// This block is where the plugin module declares its specific needs.
+// This was what was getting lost before.
+dependencies {
+    // We need the Paper API to write the plugin code.
+    compileOnly 'io.papermc.paper:paper-api:1.21-R0.1-SNAPSHOT'
+
+    // We need our own API module.
+    implementation project(':trailblazer-api')
+
+    // We need the Gson library for handling JSON.
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
+
+// This correctly processes the version number in plugin.yml
+processResources {
+    filesMatching('plugin.yml') {
+        expand('version': project.version)
+    }
+}
+
+// This configures the shadowJar task to bundle and relocate Gson.
+shadowJar {
+    relocate 'com.google.gson', 'com.trailblazer.plugin.libs.gson'
+    archiveClassifier.set('')
+}
+
+// This tells the main 'build' task to run our 'shadowJar' task.
+build {
+    dependsOn shadowJar
+}

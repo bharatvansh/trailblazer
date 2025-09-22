@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "trailblazer",
+  "version": "${version}",
+  "name": "Trailblazer",
+  "description": "Client-side companion mod for the Trailblazer path sharing system.",
+  "authors": [
+    "YourName"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/trailblazer/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.trailblazer.fabric.TrailblazerFabricClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
