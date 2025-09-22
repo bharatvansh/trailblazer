@@ -165,6 +165,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     public void sendHideAllPaths(Player player) {
         if (!isModdedPlayer(player)) return;
         // This packet has no data, so we send an empty byte array.
-        player.sendPluginMessage(plugin, S2C_HIDE_ALL_CHANNEL, new byte[1]);
+        player.sendPluginMessage(plugin, S2C_HIDE_ALL_CHANNEL, new byte[0]);
     }
 }

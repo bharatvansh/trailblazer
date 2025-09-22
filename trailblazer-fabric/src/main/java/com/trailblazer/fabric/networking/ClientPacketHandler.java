@@ -44,7 +44,7 @@ public class ClientPacketHandler {
                     pathManager.addPath(path);
                     // Do NOT automatically make paths visible on sync.
                     // The GUI will control visibility from now on.
-                    // pathManager.setPathVisible(path.getPathId()); // <-- DELETE OR COMMENT OUT THIS LINE
+                    pathManager.setPathVisible(path.getPathId()); // <-- DELETE OR COMMENT OUT THIS LINE
                 }
             });
         });
