@@ -22,6 +22,8 @@ public class ClientPathManager {
     private final Map<UUID, PathData> paths = new HashMap<>();
     // A set to track which paths should currently be visible.
     private final Set<UUID> visiblePaths = new HashSet<>();
+    // A special field to hold the path currently being recorded in real-time.
+    private PathData livePath = null;
 
     public void addPath(PathData path) {
         paths.put(path.getPathId(), path);
@@ -44,6 +46,38 @@ public class ClientPathManager {
 
     public void hideAllPaths() {
         visiblePaths.clear();
+    }
+
+    /**
+     * Returns the path currently being recorded, if any.
+     * @return The live PathData object, or null if not recording.
+     */
+    public PathData getLivePath() {
+        return livePath;
+    }
+
+    /**
+     * Updates the points for the live path. This is called when a {@code LivePathUpdatePayload} is received.
+     * @param points The new list of points for the path.
+     */
+    public void updateLivePath(List<Vector3d> points) {
+        if (livePath == null) {
+            // If this is the first update, create a new PathData object to represent the live path.
+            // We use a fixed UUID for the live path so we can easily identify it.
+            UUID livePathId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+            livePath = new PathData(livePathId, "LiveRecording", UUID.randomUUID(), "Me", 0L, "", points);
+        } else {
+            // Otherwise, just update the points.
+            livePath.getPoints().clear();
+            livePath.getPoints().addAll(points);
+        }
+    }
+
+    /**
+     * Clears the live path data. Called when a {@code StopLivePathPayload} is received.
+     */
+    public void stopLivePath() {
+        livePath = null;
     }
 
     public Collection<PathData> getVisiblePaths() {

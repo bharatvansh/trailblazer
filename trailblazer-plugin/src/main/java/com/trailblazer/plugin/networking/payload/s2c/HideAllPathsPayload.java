@@ -7,4 +7,9 @@ import org.bukkit.NamespacedKey;
  */
 public class HideAllPathsPayload {
     public static final NamespacedKey ID = new NamespacedKey("trailblazer", "hide_all_paths");
+    public static final String CHANNEL = ID.toString();
+
+    public byte[] toBytes() {
+        return new byte[1];
+    }
 }

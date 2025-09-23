@@ -1,6 +1,7 @@
 package com.trailblazer.plugin;
 
 import com.trailblazer.api.Vector3d;
+import com.trailblazer.plugin.networking.ServerPacketHandler;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
@@ -25,6 +26,11 @@ public class PathRecordingManager {
     // Key: The player's UUID.
     // Value: The list of Vector3d points they have recorded so far.
     private final Map<UUID, List<Vector3d>> recordingSessions = new ConcurrentHashMap<>();
+    private final ServerPacketHandler packetHandler;
+
+    public PathRecordingManager(ServerPacketHandler packetHandler) {
+        this.packetHandler = packetHandler;
+    }
 
     /**
      * Starts a new recording session for a player.
@@ -32,12 +38,16 @@ public class PathRecordingManager {
      * @return true if a new session was started, false if they were already recording.
      */
     public boolean startRecording(Player player) {
+        TrailblazerPlugin.getPluginLogger().info("Starting recording for player " + player.getName());
         if (isRecording(player)) {
             return false; // Already recording
         }
-        recordingSessions.put(player.getUniqueId(), new ArrayList<>());
+        List<Vector3d> points = new ArrayList<>();
+        recordingSessions.put(player.getUniqueId(), points);
         // Record the very first point immediately.
         recordPlayerLocation(player, player.getLocation());
+        // Send the initial point to the client to start live rendering.
+        packetHandler.sendLivePathUpdate(player, points);
         return true;
     }
 
@@ -47,11 +57,23 @@ public class PathRecordingManager {
      * @return The list of recorded points, or null if they were not recording.
      */
     public List<Vector3d> stopRecording(Player player) {
+        TrailblazerPlugin.getPluginLogger().info("Stopping recording for player " + player.getName());
         if (!isRecording(player)) {
             return null; // Was not recording
         }
+        // Tell the client to stop rendering the live path.
+        packetHandler.sendStopLivePath(player);
         // Remove the session from the map and return the list of points.
         return recordingSessions.remove(player.getUniqueId());
+    }
+
+    /**
+     * Silently cancels a recording session without saving. Used for clean-up when a player disconnects.
+     * @param player The player whose session to cancel.
+     */
+    public void cancelRecording(Player player) {
+        TrailblazerPlugin.getPluginLogger().info("Cancelling recording for player " + player.getName());
+        recordingSessions.remove(player.getUniqueId());
     }
 
     /**
@@ -91,6 +113,8 @@ public class PathRecordingManager {
 
         if (distanceSquared >= MIN_DISTANCE_SQUARED) {
             points.add(newPoint);
+            // Send the updated points to the client for live rendering.
+            packetHandler.sendLivePathUpdate(player, points);
         }
     }
 }

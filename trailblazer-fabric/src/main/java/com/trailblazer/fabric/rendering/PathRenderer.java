@@ -11,6 +11,8 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
+import java.util.List;
+
 /**
  * Handles the client-side rendering of paths in the world.
  */
@@ -46,44 +48,16 @@ public class PathRenderer {
             try {
 
                 VertexConsumer lineConsumer = context.consumers().getBuffer(RenderLayer.getLines());
-                // For each path, emit line segment vertices including a normal so the vertex format is satisfied.
+
+                // Render saved paths in cyan
                 for (PathData path : pathManager.getVisiblePaths()) {
-                    var points = path.getPoints();
-                    if (points == null || points.size() < 2) continue;
-                    com.trailblazer.api.Vector3d prev = points.get(0);
-                    for (int i = 1; i < points.size(); i++) {
-                        com.trailblazer.api.Vector3d cur = points.get(i);
-                        float x1 = (float) prev.getX();
-                        float y1 = (float) prev.getY();
-                        float z1 = (float) prev.getZ();
-                        float x2 = (float) cur.getX();
-                        float y2 = (float) cur.getY();
-                        float z2 = (float) cur.getZ();
+                    renderPath(path, positionMatrix, lineConsumer, 0, 255, 255);
+                }
 
-                        // Compute a direction vector to use as a normal. (Lines don't really need lighting, but
-                        // the LINES vertex format in 1.21 includes a normal attribute; omitting it crashes.)
-                        float dx = x2 - x1;
-                        float dy = y2 - y1;
-                        float dz = z2 - z1;
-                        float len = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-                        float nx, ny, nz;
-                        if (len > 1.0e-6f) {
-                            nx = dx / len;
-                            ny = dy / len;
-                            nz = dz / len;
-                        } else {
-                            // Fallback normal (arbitrary but valid) if points coincide
-                            nx = 0f; ny = 1f; nz = 0f;
-                        }
-
-            lineConsumer.vertex(positionMatrix, x1, y1, z1)
-                .color(0, 255, 255, 255)
-                .normal(nx, ny, nz);
-            lineConsumer.vertex(positionMatrix, x2, y2, z2)
-                .color(0, 255, 255, 255)
-                .normal(nx, ny, nz);
-                        prev = cur;
-                    }
+                // Render the live path in red, if it exists
+                PathData livePath = pathManager.getLivePath();
+                if (livePath != null) {
+                    renderPath(livePath, positionMatrix, lineConsumer, 255, 0, 0);
                 }
             } finally {
                 // Restore render state
@@ -92,6 +66,55 @@ public class PathRenderer {
                 matrices.pop();
             }
         });
+    }
+
+    /**
+     * Helper method to render a single path with a specific color.
+     * @param path The PathData to render.
+     * @param positionMatrix The current transformation matrix.
+     * @param lineConsumer The vertex consumer for drawing lines.
+     * @param r Red color component (0-255).
+     * @param g Green color component (0-255).
+     * @param b Blue color component (0-255).
+     */
+    private void renderPath(PathData path, Matrix4f positionMatrix, VertexConsumer lineConsumer, int r, int g, int b) {
+        List<com.trailblazer.api.Vector3d> points = path.getPoints();
+        if (points == null || points.size() < 2) return;
+
+        com.trailblazer.api.Vector3d prev = points.get(0);
+        for (int i = 1; i < points.size(); i++) {
+            com.trailblazer.api.Vector3d cur = points.get(i);
+            float x1 = (float) prev.getX();
+            float y1 = (float) prev.getY();
+            float z1 = (float) prev.getZ();
+            float x2 = (float) cur.getX();
+            float y2 = (float) cur.getY();
+            float z2 = (float) cur.getZ();
+
+            // Compute a direction vector to use as a normal. (Lines don't really need lighting, but
+            // the LINES vertex format in 1.21 includes a normal attribute; omitting it crashes.)
+            float dx = x2 - x1;
+            float dy = y2 - y1;
+            float dz = z2 - z1;
+            float len = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            float nx, ny, nz;
+            if (len > 1.0e-6f) {
+                nx = dx / len;
+                ny = dy / len;
+                nz = dz / len;
+            } else {
+                // Fallback normal (arbitrary but valid) if points coincide
+                nx = 0f; ny = 1f; nz = 0f;
+            }
+
+            lineConsumer.vertex(positionMatrix, x1, y1, z1)
+                .color(r, g, b, 255)
+                .normal(nx, ny, nz);
+            lineConsumer.vertex(positionMatrix, x2, y2, z2)
+                .color(r, g, b, 255)
+                .normal(nx, ny, nz);
+            prev = cur;
+        }
     }
 }
 

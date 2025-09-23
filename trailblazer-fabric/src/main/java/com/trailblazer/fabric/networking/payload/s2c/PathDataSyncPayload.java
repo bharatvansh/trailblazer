@@ -16,24 +16,14 @@ import net.minecraft.util.Identifier;
 public record PathDataSyncPayload(String json) implements CustomPayload {
 
     public static final Id<PathDataSyncPayload> ID = new Id<>(Identifier.of(TrailblazerFabricClient.MOD_ID, "sync_path_data"));
-
-    // Simple codec: length-prefixed UTF-8 string.
-    public static final PacketCodec<RegistryByteBuf, PathDataSyncPayload> CODEC = new PacketCodec<>() {
-        @Override
-        public PathDataSyncPayload decode(RegistryByteBuf buf) {
-            int len = buf.readableBytes();
-            byte[] bytes = new byte[len];
+    public static final PacketCodec<RegistryByteBuf, PathDataSyncPayload> CODEC = PacketCodec.of(
+        (value, buf) -> buf.writeString(value.json),
+        (buf) -> {
+            byte[] bytes = new byte[buf.readableBytes()];
             buf.readBytes(bytes);
             return new PathDataSyncPayload(new String(bytes, StandardCharsets.UTF_8));
         }
-
-        @Override
-        public void encode(RegistryByteBuf buf, PathDataSyncPayload value) {
-            byte[] bytes = value.json().getBytes(StandardCharsets.UTF_8);
-            buf.writeVarInt(bytes.length);
-            buf.writeBytes(bytes);
-        }
-    };
+    );
 
     @Override
     public Id<? extends CustomPayload> getId() {

@@ -20,7 +20,6 @@ public class TrailblazerFabricClient implements ClientModInitializer {
     // --- NEW INSTANCES ---
     private ClientPathManager clientPathManager;
     private PathRenderer pathRenderer;
-    private KeyBindingManager keyBindingManager;
     // --- END NEW ---
 
     @Override
@@ -30,11 +29,10 @@ public class TrailblazerFabricClient implements ClientModInitializer {
         // --- INITIALIZATION LOGIC ---
         this.clientPathManager = new ClientPathManager();
         this.pathRenderer = new PathRenderer(clientPathManager);
-        this.keyBindingManager = new KeyBindingManager();
 
         // Register the renderer with the game's render events
         pathRenderer.initialize();
-        keyBindingManager.initialize();
+        KeyBindingManager.initialize();
 
         // Register payload codecs before registering handlers.
         TrailblazerNetworking.registerPayloadTypes();

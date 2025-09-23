@@ -1,6 +1,5 @@
 package com.trailblazer.plugin.networking;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -24,7 +23,9 @@ import com.trailblazer.plugin.TrailblazerPlugin;
 import com.trailblazer.plugin.networking.payload.c2s.HandshakePayload;
 import com.trailblazer.plugin.networking.payload.c2s.ToggleRecordingPayload;
 import com.trailblazer.plugin.networking.payload.s2c.HideAllPathsPayload;
+import com.trailblazer.plugin.networking.payload.s2c.LivePathUpdatePayload;
 import com.trailblazer.plugin.networking.payload.s2c.PathDataSyncPayload;
+import com.trailblazer.plugin.networking.payload.s2c.StopLivePathPayload;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -35,7 +36,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private final Gson gson = new Gson();
     private final Set<UUID> moddedPlayers = new HashSet<>();
 
-    private final PathRecordingManager recordingManager;
+    private PathRecordingManager recordingManager;
     private final PathDataManager dataManager;
 
     public ServerPacketHandler(TrailblazerPlugin plugin) {
@@ -44,17 +45,25 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         this.dataManager = plugin.getPathDataManager();
 
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathDataSyncPayload.ID.toString());
-        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, HideAllPathsPayload.ID.toString());
-        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ToggleRecordingPayload.ID.toString(), this);
-        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.ID.toString(), this);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathDataSyncPayload.CHANNEL);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, HideAllPathsPayload.CHANNEL);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, LivePathUpdatePayload.CHANNEL);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, StopLivePathPayload.CHANNEL);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ToggleRecordingPayload.CHANNEL, this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
+    }
+
+    public void setRecordingManager(PathRecordingManager recordingManager) {
+        this.recordingManager = recordingManager;
     }
 
     @Override
     public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, @NotNull byte[] message) {
-        if (channel.equalsIgnoreCase(HandshakePayload.ID.toString())) {
+        plugin.getLogger().info("Received plugin message on channel: " + channel + " from player: " + player.getName());
+
+        if (channel.equalsIgnoreCase(HandshakePayload.CHANNEL)) {
             moddedPlayers.add(player.getUniqueId());
-            TrailblazerPlugin.getPluginLogger().info("Successful handshake. Trailblazer client mod confirmed for player: " + player.getName());
+            plugin.getLogger().info("Received HandshakePayload from " + player.getName());
 
             // --- NEW LOGIC: Proactive Data Sync ---
             // Immediately send all saved paths to the client upon successful handshake.
@@ -72,7 +81,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             return;
         }
 
-        if (channel.equalsIgnoreCase(ToggleRecordingPayload.ID.toString())) {
+        if (channel.equalsIgnoreCase(ToggleRecordingPayload.CHANNEL)) {
+            plugin.getLogger().info("Received ToggleRecordingPayload from " + player.getName());
             // ... (The toggle logic remains unchanged)
             if (recordingManager.isRecording(player)) {
                 List<Vector3d> recordedPoints = recordingManager.stopRecording(player);
@@ -117,8 +127,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         }
 
         String json = gson.toJson(paths);
-        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
-        player.sendPluginMessage(plugin, PathDataSyncPayload.ID.toString(), jsonBytes);
+        PathDataSyncPayload payload = new PathDataSyncPayload(json);
+        player.sendPluginMessage(plugin, PathDataSyncPayload.CHANNEL, payload.toBytes());
     }
 
     // The onPlayerJoin event is now only used for cleanup, not detection.
@@ -130,7 +140,13 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        moddedPlayers.remove(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        moddedPlayers.remove(player.getUniqueId());
+        // Clean up any active recording session to prevent "ghost" recordings.
+        if (recordingManager.isRecording(player)) {
+            recordingManager.cancelRecording(player);
+            TrailblazerPlugin.getPluginLogger().info("Cancelled active recording session for disconnected player: " + player.getName());
+        }
     }
 
     public boolean isModdedPlayer(Player player) {
@@ -144,6 +160,31 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     public void sendHideAllPaths(Player player) {
         if (!isModdedPlayer(player)) return;
         // This packet has no data, but the client expects to read at least one byte.
-        player.sendPluginMessage(plugin, HideAllPathsPayload.ID.toString(), new byte[1]);
+        player.sendPluginMessage(plugin, HideAllPathsPayload.CHANNEL, new HideAllPathsPayload().toBytes());
+    }
+
+    /**
+     * Sends the current list of points for a path being recorded.
+     * @param player The player to send the update to.
+     * @param points The list of points to send.
+     */
+    public void sendLivePathUpdate(Player player, List<Vector3d> points) {
+        if (!isModdedPlayer(player) || points == null) {
+            return;
+        }
+        LivePathUpdatePayload payload = new LivePathUpdatePayload(points);
+        player.sendPluginMessage(plugin, LivePathUpdatePayload.CHANNEL, payload.toBytes());
+    }
+
+    /**
+     * Sends a signal to the client to stop rendering the live path.
+     * @param player The player to send the signal to.
+     */
+    public void sendStopLivePath(Player player) {
+        if (!isModdedPlayer(player)) {
+            return;
+        }
+        StopLivePathPayload payload = new StopLivePathPayload();
+        player.sendPluginMessage(plugin, StopLivePathPayload.CHANNEL, payload.toBytes());
     }
 }

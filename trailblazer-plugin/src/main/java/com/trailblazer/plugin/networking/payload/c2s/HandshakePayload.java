@@ -7,4 +7,5 @@ import org.bukkit.NamespacedKey;
  */
 public class HandshakePayload {
     public static final NamespacedKey ID = new NamespacedKey("trailblazer", "handshake");
+    public static final String CHANNEL = ID.toString();
 }

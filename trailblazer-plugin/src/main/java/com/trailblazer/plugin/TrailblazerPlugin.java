@@ -40,10 +40,16 @@ public final class TrailblazerPlugin extends JavaPlugin {
     }
 
     private void initializeManagers() {
-        pathRecordingManager = new PathRecordingManager();
+        // Initialize dataManager first
         pathDataManager = new PathDataManager(this);
-        pathRendererManager = new PathRendererManager(this);
+        // Create packet handler next
         serverPacketHandler = new ServerPacketHandler(this);
+        // Create recording manager with packet handler
+        pathRecordingManager = new PathRecordingManager(serverPacketHandler);
+        // Set the recording manager in packet handler
+        serverPacketHandler.setRecordingManager(pathRecordingManager);
+        // Initialize renderer manager
+        pathRendererManager = new PathRendererManager(this);
         pluginLogger.info("Managers initialized.");
     }
 
