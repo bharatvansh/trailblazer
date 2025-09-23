@@ -1,87 +1,102 @@
 package com.trailblazer.plugin;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.trailblazer.api.PathData;
-import org.bukkit.entity.Player;
-
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Manages the persistence of PathData objects by saving them to and loading them from JSON files.
- */
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.trailblazer.api.PathData;
+
 public class PathDataManager {
 
     private final File dataFolder;
     private final Gson gson;
 
     public PathDataManager(TrailblazerPlugin plugin) {
-        // Create a dedicated folder for our data inside the plugin's folder.
         this.dataFolder = new File(plugin.getDataFolder(), "data");
-        if (!this.dataFolder.exists()) {
-            if (!this.dataFolder.mkdirs()) {
-                TrailblazerPlugin.getPluginLogger().severe("Could not create data folder!");
-            }
+        if (!this.dataFolder.exists() && !this.dataFolder.mkdirs()) {
+            TrailblazerPlugin.getPluginLogger().severe("Could not create data folder!");
         }
-        // Use Gson for JSON serialization. prettyPrinting makes the files human-readable.
         this.gson = new GsonBuilder().setPrettyPrinting().create();
     }
 
-    /**
-     * Saves a new path for a specific player.
-     * It loads existing paths and appends the new one to the list.
-     * @param player The player who owns the path.
-     * @param path The PathData object to save.
-     */
-    public void savePath(Player player, PathData path) {
-        File playerFile = getPlayerFile(player.getUniqueId());
-        List<PathData> playerPaths = loadPaths(player.getUniqueId());
-        playerPaths.add(path);
+    public void savePath(UUID playerUUID, PathData path) {
+        File playerFolder = new File(dataFolder, playerUUID.toString());
+        if (!playerFolder.exists() && !playerFolder.mkdirs()) {
+            TrailblazerPlugin.getPluginLogger().severe("Could not create player data folder for " + playerUUID);
+            return;
+        }
 
-        try (FileWriter writer = new FileWriter(playerFile)) {
-            gson.toJson(playerPaths, writer);
+        File pathFile = new File(playerFolder, path.getPathId().toString() + ".json");
+        try (FileWriter writer = new FileWriter(pathFile)) {
+            gson.toJson(path, writer);
         } catch (IOException e) {
-            TrailblazerPlugin.getPluginLogger().severe("Failed to save path data for " + player.getName());
+            TrailblazerPlugin.getPluginLogger().severe("Failed to save path " + path.getPathName() + " for " + playerUUID);
             e.printStackTrace();
         }
     }
 
-    /**
-     * Loads all saved paths for a specific player.
-     * @param playerUUID The UUID of the player.
-     * @return A list of PathData objects. Returns an empty list if no file exists or on error.
-     */
     public List<PathData> loadPaths(UUID playerUUID) {
-        File playerFile = getPlayerFile(playerUUID);
-        if (!playerFile.exists()) {
-            return new ArrayList<>(); // Return an empty list if the player has no saved paths yet.
+        File playerFolder = new File(dataFolder, playerUUID.toString());
+        List<PathData> playerPaths = new ArrayList<>();
+
+        if (!playerFolder.exists()) {
+            return playerPaths;
         }
 
-        try (FileReader reader = new FileReader(playerFile)) {
-            PathData[] paths = gson.fromJson(reader, PathData[].class);
-            if (paths != null) {
-                return new ArrayList<>(Arrays.asList(paths));
+        File[] pathFiles = playerFolder.listFiles((dir, name) -> name.endsWith(".json"));
+        if (pathFiles == null) {
+            return playerPaths;
+        }
+
+        for (File pathFile : pathFiles) {
+            try (FileReader reader = new FileReader(pathFile)) {
+                PathData pathData = gson.fromJson(reader, PathData.class);
+                if (pathData != null) {
+                    playerPaths.add(pathData);
+                }
+            } catch (IOException e) {
+                TrailblazerPlugin.getPluginLogger().severe("Failed to load a path file for " + playerUUID);
+                e.printStackTrace();
+            }
+        }
+        return playerPaths;
+    }
+
+    public void deletePath(UUID playerUUID, UUID pathId) {
+        File playerFolder = new File(dataFolder, playerUUID.toString());
+        File pathFile = new File(playerFolder, pathId.toString() + ".json");
+
+        if (pathFile.exists() && !pathFile.delete()) {
+            TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
+        }
+    }
+
+    public void renamePath(UUID playerUUID, UUID pathId, String newName) {
+        File playerFolder = new File(dataFolder, playerUUID.toString());
+        File pathFile = new File(playerFolder, pathId.toString() + ".json");
+
+        if (!pathFile.exists()) {
+            TrailblazerPlugin.getPluginLogger().warning("Attempted to rename a path that does not exist: " + pathId);
+            return;
+        }
+
+        try (FileReader reader = new FileReader(pathFile)) {
+            PathData pathData = gson.fromJson(reader, PathData.class);
+            if (pathData != null) {
+                pathData.setPathName(newName);
+                try (FileWriter writer = new FileWriter(pathFile)) {
+                    gson.toJson(pathData, writer);
+                }
             }
         } catch (IOException e) {
-            TrailblazerPlugin.getPluginLogger().severe("Failed to load path data for UUID " + playerUUID);
+            TrailblazerPlugin.getPluginLogger().severe("Failed to rename path: " + pathId);
             e.printStackTrace();
         }
-        return new ArrayList<>();
-    }
-
-    /**
-     * Helper method to get the specific data file for a player.
-     * @param playerUUID The player's UUID.
-     * @return The File object for the player's data file.
-     */
-    private File getPlayerFile(UUID playerUUID) {
-        return new File(dataFolder, playerUUID.toString() + ".json");
     }
 }

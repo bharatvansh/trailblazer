@@ -95,7 +95,7 @@ public class PathCommand implements CommandExecutor {
             }
             String pathName = "Path-" + (dataManager.loadPaths(player.getUniqueId()).size() + 1);
             PathData newPath = new PathData(UUID.randomUUID(), pathName, player.getUniqueId(), player.getName(), System.currentTimeMillis(), player.getWorld().getName(), recordedPoints);
-            dataManager.savePath(player, newPath);
+            dataManager.savePath(player.getUniqueId(), newPath);
             player.sendMessage(Component.text()
                     .append(Component.text("Path recording stopped and saved as '", NamedTextColor.GREEN))
                     .append(Component.text(pathName, NamedTextColor.AQUA))
