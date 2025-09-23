@@ -2,14 +2,18 @@ package com.trailblazer.plugin;
 
 import java.util.logging.Logger;
 
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.trailblazer.plugin.commands.PathCommand;
 import com.trailblazer.plugin.commands.PathTabCompleter;
 import com.trailblazer.plugin.listeners.PlayerMoveListener;
 import com.trailblazer.plugin.networking.ServerPacketHandler;
+import com.trailblazer.plugin.rendering.PlayerRenderSettingsManager;
 
-public final class TrailblazerPlugin extends JavaPlugin {
+public final class TrailblazerPlugin extends JavaPlugin implements Listener {
 
     private static Logger pluginLogger;
     private static TrailblazerPlugin instance;
@@ -18,6 +22,7 @@ public final class TrailblazerPlugin extends JavaPlugin {
     private PathDataManager pathDataManager;
     private PathRendererManager pathRendererManager;
     private ServerPacketHandler serverPacketHandler;
+    private PlayerRenderSettingsManager playerRenderSettingsManager;
 
     @Override
     public void onEnable() {
@@ -40,44 +45,48 @@ public final class TrailblazerPlugin extends JavaPlugin {
     }
 
     private void initializeManagers() {
-        // Initialize dataManager first
         pathDataManager = new PathDataManager(this);
-        // Create packet handler next
+        playerRenderSettingsManager = new PlayerRenderSettingsManager();
         serverPacketHandler = new ServerPacketHandler(this);
-        // Create recording manager with packet handler
         pathRecordingManager = new PathRecordingManager(serverPacketHandler);
-        // Set the recording manager in packet handler
         serverPacketHandler.setRecordingManager(pathRecordingManager);
-        // Initialize renderer manager
-        pathRendererManager = new PathRendererManager(this);
+        pathRendererManager = new PathRendererManager(this); // This will show an error, we fix it next
         pluginLogger.info("Managers initialized.");
     }
 
     private void registerEventListeners() {
         getServer().getPluginManager().registerEvents(new PlayerMoveListener(pathRecordingManager), this);
+        getServer().getPluginManager().registerEvents(this, this); // Register this class for the quit event
         pluginLogger.info("Event listeners registered.");
     }
+    
+    // Cleans up managers to prevent memory leaks when a player logs off.
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        playerRenderSettingsManager.onPlayerQuit(event.getPlayer());
+        pathRendererManager.stopRendering(event.getPlayer());
+    }
 
-    // --- NEW METHOD ---
     private void registerCommands() {
-        getCommand("path").setExecutor(new PathCommand(this));
+        getCommand("path").setExecutor(new PathCommand(this)); // This will also show an error
         getCommand("path").setTabCompleter(new PathTabCompleter(pathDataManager));
         pluginLogger.info("Commands registered.");
     }
-    // --- END NEW ---
 
     public PathRecordingManager getPathRecordingManager() {
         return pathRecordingManager;
     }
 
-    // --- NEW GETTER ---
     public PathDataManager getPathDataManager() {
         return pathDataManager;
     }
-    // --- END NEW ---
 
     public PathRendererManager getPathRendererManager() {
         return pathRendererManager;
+    }
+
+    public PlayerRenderSettingsManager getPlayerRenderSettingsManager() {
+        return playerRenderSettingsManager;
     }
 
     public ServerPacketHandler getServerPacketHandler() {

@@ -17,22 +17,24 @@ public class TrailblazerFabricClient implements ClientModInitializer {
     public static final String MOD_ID = "trailblazer";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    // --- NEW INSTANCES ---
     private ClientPathManager clientPathManager;
     private PathRenderer pathRenderer;
+    // --- NEW FIELD ---
+    private RenderSettingsManager renderSettingsManager;
     // --- END NEW ---
 
     @Override
     public void onInitializeClient() {
         LOGGER.info("Initializing Trailblazer client...");
 
-        // --- INITIALIZATION LOGIC ---
+        // --- MODIFIED INITIALIZATION LOGIC ---
         this.clientPathManager = new ClientPathManager();
-        this.pathRenderer = new PathRenderer(clientPathManager);
+        this.renderSettingsManager = new RenderSettingsManager(); // Create the instance
+        this.pathRenderer = new PathRenderer(clientPathManager, renderSettingsManager); // Pass it to the renderer
 
         // Register the renderer with the game's render events
         pathRenderer.initialize();
-        KeyBindingManager.initialize();
+        KeyBindingManager.initialize(renderSettingsManager); // Pass it to the keybinder
 
         // Register payload codecs before registering handlers.
         TrailblazerNetworking.registerPayloadTypes();

@@ -1,63 +1,56 @@
 package com.trailblazer.plugin.commands;
 
-import com.trailblazer.api.PathData;
 import com.trailblazer.plugin.PathDataManager;
+import com.trailblazer.plugin.rendering.RenderMode;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Handles tab-completion for the /path command to provide contextual suggestions.
- */
 public class PathTabCompleter implements TabCompleter {
 
-    private final PathDataManager dataManager;
-    private static final List<String> MAIN_COMMANDS = Arrays.asList("record", "list", "show", "hide");
-    private static final List<String> RECORD_SUBCOMMANDS = Arrays.asList("start", "stop");
+    private final PathDataManager pathDataManager;
+    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode");
+    // This will now correctly reflect the new RenderMode names
+    private static final List<String> RENDER_MODES = Arrays.stream(RenderMode.values())
+            .map(Enum::name)
+            .collect(Collectors.toList());
 
-    public PathTabCompleter(PathDataManager dataManager) {
-        this.dataManager = dataManager;
+    public PathTabCompleter(PathDataManager pathDataManager) {
+        this.pathDataManager = pathDataManager;
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (!(sender instanceof Player)) {
-            return Collections.emptyList(); // No suggestions for the console
+    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        if (!(sender instanceof org.bukkit.entity.Player player)) {
+            return new ArrayList<>();
         }
-        Player player = (Player) sender;
 
-        // This list will hold our potential suggestions.
-        final List<String> completions = new ArrayList<>();
-
-        // --- Logic for the FIRST argument ---
         if (args.length == 1) {
-            // Suggest main commands (record, list, etc.) that start with what the user has typed.
-            StringUtil.copyPartialMatches(args[0], MAIN_COMMANDS, completions);
+            return StringUtil.copyPartialMatches(args[0], SUB_COMMANDS, new ArrayList<>());
         }
-        // --- Logic for the SECOND argument ---
-        else if (args.length == 2) {
-            String subCommand = args[0].toLowerCase();
-            if (subCommand.equals("record")) {
-                // If the first command is "record", suggest "start" or "stop".
-                StringUtil.copyPartialMatches(args[1], RECORD_SUBCOMMANDS, completions);
-            } else if (subCommand.equals("show")) {
-                // If the first command is "show", suggest the names of their saved paths.
-                List<PathData> paths = dataManager.loadPaths(player.getUniqueId());
-                List<String> pathNames = paths.stream().map(PathData::getPathName).collect(Collectors.toList());
-                StringUtil.copyPartialMatches(args[1], pathNames, completions);
+
+        if (args.length == 2) {
+            switch (args[0].toLowerCase()) {
+                case "view":
+                case "delete":
+                case "rename":
+                    List<String> pathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
+                            .map(com.trailblazer.api.PathData::getPathName)
+                            .collect(Collectors.toList());
+                    return StringUtil.copyPartialMatches(args[1], pathNames, new ArrayList<>());
+                case "rendermode":
+                    return StringUtil.copyPartialMatches(args[1], RENDER_MODES, new ArrayList<>());
             }
         }
 
-        // Sort the suggestions alphabetically for a clean look.
-        Collections.sort(completions);
-        return completions;
+        return new ArrayList<>(); // No suggestions
     }
 }

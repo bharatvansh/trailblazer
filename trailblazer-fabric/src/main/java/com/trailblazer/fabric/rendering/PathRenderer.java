@@ -1,120 +1,194 @@
 package com.trailblazer.fabric.rendering;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.trailblazer.api.PathData;
-import com.trailblazer.fabric.ClientPathManager;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.util.math.Vec3d;
-import org.joml.Matrix4f;
-
 import java.util.List;
+import java.util.Optional;
+
+import org.joml.Vector3f;
+
+import com.trailblazer.api.PathData;
+import com.trailblazer.api.Vector3d;
+import com.trailblazer.fabric.ClientPathManager;
+import com.trailblazer.fabric.RenderSettingsManager;
+
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraft.client.world.ClientWorld;
+import net.minecraft.particle.DustParticleEffect;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.util.math.Vec3d;
 
 /**
  * Handles the client-side rendering of paths in the world.
  */
 public class PathRenderer {
 
-    private final ClientPathManager pathManager;
+    private final ClientPathManager clientPathManager;
+    private final RenderSettingsManager renderSettingsManager;
 
-    public PathRenderer(ClientPathManager pathManager) {
-        this.pathManager = pathManager;
+    // A nice blue color for the particle trail
+    private static final DustParticleEffect TRAIL_PARTICLE = new DustParticleEffect(new Vector3f(0.2f, 0.5f, 1.0f), 1.0f);
+    private static final DustParticleEffect LIVE_TRAIL_PARTICLE = new DustParticleEffect(new Vector3f(1.0f, 0.5f, 0.0f), 1.0f);
+
+
+    public PathRenderer(ClientPathManager clientPathManager, RenderSettingsManager renderSettingsManager) {
+        this.clientPathManager = clientPathManager;
+        this.renderSettingsManager = renderSettingsManager;
     }
 
     public void initialize() {
-        // Register our render method to be called after entities are rendered in the world.
-        WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            // Get the camera's position to correctly offset our rendering
-            Camera camera = context.camera();
-            Vec3d cameraPos = camera.getPos();
-
-            // Matrix stack (Yarn name MatrixStack) manages transformations
-            MatrixStack matrices = context.matrixStack();
-            matrices.push();
-            matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
-            Matrix4f positionMatrix = matrices.peek().getPositionMatrix();
-
-            // Prepare rendering state (wrapped in try/finally to guarantee restoration)
-            float lineWidth = 3.0F;
-            if (lineWidth < 1.0F) lineWidth = 1.0F;
-            if (lineWidth > 10.0F) lineWidth = 10.0F; // avoid absurd values
-
-            RenderSystem.lineWidth(lineWidth);
-            RenderSystem.disableCull();
-            RenderSystem.depthMask(false);
-            try {
-
-                VertexConsumer lineConsumer = context.consumers().getBuffer(RenderLayer.getLines());
-
-                // Render saved paths in cyan
-                for (PathData path : pathManager.getVisiblePaths()) {
-                    renderPath(path, positionMatrix, lineConsumer, 0, 255, 255);
-                }
-
-                // Render the live path in red, if it exists
-                PathData livePath = pathManager.getLivePath();
-                if (livePath != null) {
-                    renderPath(livePath, positionMatrix, lineConsumer, 255, 0, 0);
-                }
-            } finally {
-                // Restore render state
-                RenderSystem.depthMask(true);
-                RenderSystem.enableCull();
-                matrices.pop();
-            }
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
+            renderActivePaths(context.world());
         });
     }
 
-    /**
-     * Helper method to render a single path with a specific color.
-     * @param path The PathData to render.
-     * @param positionMatrix The current transformation matrix.
-     * @param lineConsumer The vertex consumer for drawing lines.
-     * @param r Red color component (0-255).
-     * @param g Green color component (0-255).
-     * @param b Blue color component (0-255).
-     */
-    private void renderPath(PathData path, Matrix4f positionMatrix, VertexConsumer lineConsumer, int r, int g, int b) {
-        List<com.trailblazer.api.Vector3d> points = path.getPoints();
-        if (points == null || points.size() < 2) return;
+    private void renderActivePaths(ClientWorld world) {
+        // --- START OF FIX ---
+        // Render the live path if it exists, using a null check
+        PathData livePath = clientPathManager.getLivePath();
+        if (livePath != null) {
+            renderPath(livePath, world, true);
+        }
+        // --- END OF FIX ---
 
-        com.trailblazer.api.Vector3d prev = points.get(0);
-        for (int i = 1; i < points.size(); i++) {
-            com.trailblazer.api.Vector3d cur = points.get(i);
-            float x1 = (float) prev.getX();
-            float y1 = (float) prev.getY();
-            float z1 = (float) prev.getZ();
-            float x2 = (float) cur.getX();
-            float y2 = (float) cur.getY();
-            float z2 = (float) cur.getZ();
-
-            // Compute a direction vector to use as a normal. (Lines don't really need lighting, but
-            // the LINES vertex format in 1.21 includes a normal attribute; omitting it crashes.)
-            float dx = x2 - x1;
-            float dy = y2 - y1;
-            float dz = z2 - z1;
-            float len = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-            float nx, ny, nz;
-            if (len > 1.0e-6f) {
-                nx = dx / len;
-                ny = dy / len;
-                nz = dz / len;
-            } else {
-                // Fallback normal (arbitrary but valid) if points coincide
-                nx = 0f; ny = 1f; nz = 0f;
-            }
-
-            lineConsumer.vertex(positionMatrix, x1, y1, z1)
-                .color(r, g, b, 255)
-                .normal(nx, ny, nz);
-            lineConsumer.vertex(positionMatrix, x2, y2, z2)
-                .color(r, g, b, 255)
-                .normal(nx, ny, nz);
-            prev = cur;
+        // Render all synced paths
+        for (PathData path : clientPathManager.getVisiblePaths()) {
+            renderPath(path, world, false);
         }
     }
-}
 
+    private void renderPath(PathData path, ClientWorld world, boolean isLive) {
+        if (path.getPoints().size() < 2) {
+            return; // Cannot render a path with fewer than 2 points
+        }
+
+        // Use the appropriate rendering method based on the current mode
+        switch (renderSettingsManager.getCurrentMode()) {
+            case PARTICLE_TRAIL:
+                renderInterpolatedParticleTrail(path, world, isLive);
+                break;
+            case SPACED_MARKERS:
+                renderSpacedMarkers(path, world, isLive);
+                break;
+            case DIRECTIONAL_ARROWS:
+                renderDirectionalArrows(path, world, isLive);
+                break;
+        }
+    }
+
+    /**
+     * Renders the path as a smooth, continuous line by interpolating between points.
+     */
+    private void renderInterpolatedParticleTrail(PathData path, ClientWorld world, boolean isLive) {
+        List<Vector3d> points = path.getPoints();
+        for (int i = 0; i < points.size() - 1; i++) {
+            Vec3d start = new Vec3d(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
+            Vec3d end = new Vec3d(points.get(i + 1).getX(), points.get(i + 1).getY(), points.get(i + 1).getZ());
+
+            double distance = start.distanceTo(end);
+            Vec3d direction = end.subtract(start).normalize();
+            
+            // Spawn a particle at small intervals along the line between points
+            for (double d = 0; d < distance; d += 0.25) {
+                Vec3d pos = start.add(direction.multiply(d));
+                 world.addParticle(
+                    isLive ? LIVE_TRAIL_PARTICLE : TRAIL_PARTICLE,
+                    pos.x, pos.y, pos.z,
+                    0, 0, 0);
+            }
+        }
+    }
+
+    /**
+     * Renders the path as particles spaced at regular intervals.
+     */
+    private void renderSpacedMarkers(PathData path, ClientWorld world, boolean isLive) {
+        double spacing = renderSettingsManager.getMarkerSpacing();
+        double distanceSinceLastMarker = 0.0;
+        Vec3d lastPoint = null;
+
+        for (Vector3d point : path.getPoints()) {
+            Vec3d currentPoint = new Vec3d(point.getX(), point.getY(), point.getZ());
+            if (lastPoint != null) {
+                distanceSinceLastMarker += lastPoint.distanceTo(currentPoint);
+            }
+
+            if (lastPoint == null || distanceSinceLastMarker >= spacing) {
+                world.addParticle(
+                        isLive ? ParticleTypes.FLAME : ParticleTypes.INSTANT_EFFECT,
+                        currentPoint.x,
+                        currentPoint.y,
+                        currentPoint.z,
+                        0, 0, 0);
+                distanceSinceLastMarker = 0.0; // Reset distance
+            }
+            lastPoint = currentPoint;
+        }
+    }
+
+    /**
+     * Renders the path as arrows indicating direction.
+     */
+    private void renderDirectionalArrows(PathData path, ClientWorld world, boolean isLive) {
+        double spacing = renderSettingsManager.getMarkerSpacing();
+        double distanceSinceLastMarker = 0.0;
+        Vec3d lastPoint = null;
+
+        List<Vector3d> points = path.getPoints();
+        for (int i = 0; i < points.size(); i++) {
+            Vector3d point = points.get(i);
+            Vec3d currentPoint = new Vec3d(point.getX(), point.getY(), point.getZ());
+
+            if (lastPoint != null) {
+                distanceSinceLastMarker += lastPoint.distanceTo(currentPoint);
+            }
+
+            if (lastPoint == null || distanceSinceLastMarker >= spacing) {
+                // Find the next point to determine direction
+                Optional<Vec3d> nextPointOpt = findNextDistinctPoint(points, i);
+                if (nextPointOpt.isPresent()) {
+                    Vec3d direction = nextPointOpt.get().subtract(currentPoint).normalize();
+                    spawnArrow(world, currentPoint, direction, isLive);
+                }
+                distanceSinceLastMarker = 0.0; // Reset distance
+            }
+            lastPoint = currentPoint;
+        }
+    }
+
+    /**
+     * Finds the next point in the list that is not the same as the current one.
+     */
+    private Optional<Vec3d> findNextDistinctPoint(List<Vector3d> points, int currentIndex) {
+        for (int i = currentIndex + 1; i < points.size(); i++) {
+            Vec3d currentPoint = new Vec3d(points.get(currentIndex).getX(), points.get(currentIndex).getY(), points.get(currentIndex).getZ());
+            Vec3d nextPoint = new Vec3d(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
+            if (currentPoint.squaredDistanceTo(nextPoint) > 0.01) {
+                return Optional.of(nextPoint);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Spawns a small arrow shape using particles.
+     */
+    private void spawnArrow(ClientWorld world, Vec3d position, Vec3d direction, boolean isLive) {
+        // The main point of the arrow tip
+        world.addParticle(isLive ? ParticleTypes.FLAME : ParticleTypes.END_ROD,
+                position.x, position.y, position.z, 0, 0, 0);
+
+        // Calculate a perpendicular vector for the arrow wings
+        Vec3d perpendicular = new Vec3d(-direction.z, 0, direction.x).normalize();
+        if (perpendicular.lengthSquared() < 0.1) { // Handle case where direction is mostly vertical
+            perpendicular = new Vec3d(1, 0, 0);
+        }
+
+        // Two wing points, spaced wider and further back
+        Vec3d wing1 = position.subtract(direction.multiply(0.6)).add(perpendicular.multiply(0.4));
+        Vec3d wing2 = position.subtract(direction.multiply(0.6)).subtract(perpendicular.multiply(0.4));
+
+        world.addParticle(isLive ? ParticleTypes.SOUL_FIRE_FLAME : ParticleTypes.CRIT,
+                wing1.x, wing1.y, wing1.z, 0, 0, 0);
+        world.addParticle(isLive ? ParticleTypes.SOUL_FIRE_FLAME : ParticleTypes.CRIT,
+                wing2.x, wing2.y, wing2.z, 0, 0, 0);
+    }
+}
