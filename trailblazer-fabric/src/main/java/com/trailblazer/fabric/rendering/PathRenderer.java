@@ -61,7 +61,7 @@ public class PathRenderer {
         }
 
         // Use the appropriate rendering method based on the current mode
-        switch (renderSettingsManager.getCurrentMode()) {
+        switch (renderSettingsManager.getRenderMode()) {
             case PARTICLE_TRAIL:
                 renderInterpolatedParticleTrail(path, world, isLive);
                 break;

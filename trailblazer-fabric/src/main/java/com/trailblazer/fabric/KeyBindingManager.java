@@ -20,31 +20,33 @@ public class KeyBindingManager {
     private static final String KEY_CATEGORY = "key.categories.trailblazer";
 
     private static KeyBinding toggleRecordingKey;
-    // --- NEW KEYBINDING ---
     private static KeyBinding cycleRenderModeKey;
+    private static KeyBinding openMenuKey;
 
-    public static void initialize(RenderSettingsManager renderSettingsManager) {
-        // --- END NEW ---
+    public static void initialize(RenderSettingsManager renderSettingsManager, ClientPathManager clientPathManager) {
         toggleRecordingKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.trailblazer.toggle_recording",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_R,
                 KEY_CATEGORY));
 
-        // --- NEW KEYBINDING REGISTRATION ---
         cycleRenderModeKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.trailblazer.cycle_render_mode",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_G,
                 KEY_CATEGORY));
-        // --- END NEW ---
+        
+        openMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.trailblazer.open_menu",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_M,
+                KEY_CATEGORY));
 
-        registerKeyListeners(renderSettingsManager);
+        registerKeyListeners(renderSettingsManager, clientPathManager);
     }
 
-    private static void registerKeyListeners(RenderSettingsManager renderSettingsManager) {
+    private static void registerKeyListeners(RenderSettingsManager renderSettingsManager, ClientPathManager clientPathManager) {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // Handle the toggle recording key
             while (toggleRecordingKey.wasPressed()) {
                 if (client.player != null) {
                     LOGGER.info("Toggle recording key pressed. Sending packet to server.");
@@ -61,7 +63,12 @@ public class KeyBindingManager {
                     renderSettingsManager.cycleRenderMode();
                 }
             }
-            // --- END NEW ---
+
+            while (openMenuKey.wasPressed()) {
+                if (client.player != null) {
+                    client.setScreen(new com.trailblazer.fabric.ui.MainMenuScreen(clientPathManager));
+                }
+            }
         });
     }
 }

@@ -13,7 +13,6 @@ import com.trailblazer.fabric.TrailblazerFabricClient;
 import com.trailblazer.fabric.networking.payload.s2c.HideAllPathsPayload;
 import com.trailblazer.fabric.networking.payload.s2c.LivePathUpdatePayload;
 import com.trailblazer.fabric.networking.payload.s2c.PathDataSyncPayload;
-import com.trailblazer.fabric.networking.payload.s2c.SharePathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.StopLivePathPayload;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -75,13 +74,6 @@ public class ClientPacketHandler {
 
         ClientPlayNetworking.registerGlobalReceiver(StopLivePathPayload.ID, (payload, context) -> {
             context.client().execute(pathManager::stopLivePath);
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(SharePathPayload.ID, (payload, context) -> {
-            PathData sharedPath = payload.pathData();
-            context.client().execute(() -> {
-                pathManager.addSharedPath(sharedPath);
-            });
         });
     }
 }

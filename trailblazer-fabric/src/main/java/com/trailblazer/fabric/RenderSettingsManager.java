@@ -19,8 +19,12 @@ public class RenderSettingsManager {
      *
      * @return The current RenderMode.
      */
-    public RenderMode getCurrentMode() {
+    public RenderMode getRenderMode() {
         return currentMode;
+    }
+
+    public void setRenderMode(RenderMode mode) {
+        this.currentMode = mode;
     }
 
     /**

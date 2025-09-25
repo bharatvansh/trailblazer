@@ -1,6 +1,7 @@
 package com.trailblazer.fabric.networking;
 
 import com.trailblazer.fabric.networking.payload.c2s.HandshakePayload;
+import com.trailblazer.fabric.networking.payload.c2s.SharePathPayload;
 import com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload;
 import com.trailblazer.fabric.networking.payload.s2c.HideAllPathsPayload;
 import com.trailblazer.fabric.networking.payload.s2c.LivePathUpdatePayload;
@@ -24,5 +25,6 @@ public class TrailblazerNetworking {
         // Client-to-Server
         PayloadTypeRegistry.playC2S().register(ToggleRecordingPayload.ID, ToggleRecordingPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(HandshakePayload.ID, HandshakePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(SharePathPayload.ID, SharePathPayload.CODEC);
     }
 }

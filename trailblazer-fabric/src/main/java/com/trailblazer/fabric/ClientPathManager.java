@@ -52,6 +52,24 @@ public class ClientPathManager {
         visiblePaths.remove(pathId);
     }
 
+    public void togglePathVisibility(UUID pathId) {
+        if (visiblePaths.contains(pathId)) {
+            setPathHidden(pathId);
+        } else {
+            setPathVisible(pathId);
+        }
+    }
+
+    public void deletePath(UUID pathId) {
+        myPaths.remove(pathId);
+        visiblePaths.remove(pathId);
+    }
+
+    public void removeSharedPath(UUID pathId) {
+        sharedPaths.remove(pathId);
+        visiblePaths.remove(pathId);
+    }
+
     public void hideAllPaths() {
         visiblePaths.clear();
     }
