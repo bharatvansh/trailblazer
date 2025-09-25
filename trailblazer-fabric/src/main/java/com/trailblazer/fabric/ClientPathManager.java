@@ -26,6 +26,8 @@ public class ClientPathManager {
     private final Set<UUID> visiblePaths = new HashSet<>();
     // A special field to hold the path currently being recorded in real-time.
     private PathData livePath = null;
+    // Tracks whether a recording session is currently active (client view)
+    private boolean recording = false;
 
     public void addMyPath(PathData path) {
         myPaths.put(path.getPathId(), path);
@@ -101,6 +103,8 @@ public class ClientPathManager {
             livePath.getPoints().clear();
             livePath.getPoints().addAll(points);
         }
+        // Receiving live updates implies we are in a recording session.
+        recording = true;
     }
 
     /**
@@ -108,6 +112,20 @@ public class ClientPathManager {
      */
     public void stopLivePath() {
         livePath = null;
+        recording = false;
+    }
+
+    // --- Recording state helpers (client-side optimistic) ---
+    public boolean isRecording() {
+        return recording;
+    }
+
+    public void startRecordingLocal() {
+        recording = true;
+    }
+
+    public void stopRecordingLocal() {
+        recording = false;
     }
 
     public Collection<PathData> getVisiblePaths() {

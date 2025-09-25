@@ -50,7 +50,14 @@ public class KeyBindingManager {
             while (toggleRecordingKey.wasPressed()) {
                 if (client.player != null) {
                     LOGGER.info("Toggle recording key pressed. Sending packet to server.");
-                    client.player.sendMessage(Text.literal("Toggling path recording...").formatted(Formatting.YELLOW), true);
+                    boolean starting = !clientPathManager.isRecording();
+                    if (starting) {
+                        client.player.sendMessage(Text.literal("Starting path recording...").formatted(Formatting.YELLOW), true);
+                        clientPathManager.startRecordingLocal();
+                    } else {
+                        client.player.sendMessage(Text.literal("Stopping path recording...").formatted(Formatting.YELLOW), true);
+                        clientPathManager.stopRecordingLocal();
+                    }
                     ClientPlayNetworking.send(new ToggleRecordingPayload());
                 }
             }

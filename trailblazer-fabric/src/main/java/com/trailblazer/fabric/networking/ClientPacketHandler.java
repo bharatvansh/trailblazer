@@ -73,7 +73,19 @@ public class ClientPacketHandler {
         });
 
         ClientPlayNetworking.registerGlobalReceiver(StopLivePathPayload.ID, (payload, context) -> {
-            context.client().execute(pathManager::stopLivePath);
+            context.client().execute(() -> {
+                pathManager.stopLivePath();
+                // After recording stops, request a fresh sync so newly saved path appears immediately
+                try {
+                    if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
+                            com.trailblazer.fabric.networking.payload.c2s.HandshakePayload.ID)) {
+                        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                                new com.trailblazer.fabric.networking.payload.c2s.HandshakePayload());
+                    }
+                } catch (Exception e) {
+                    TrailblazerFabricClient.LOGGER.error("Failed to request path resync after recording stop", e);
+                }
+            });
         });
     }
 }

@@ -21,6 +21,7 @@ public class MainMenuScreen extends Screen {
     private ButtonWidget settingsButton;
     private ButtonWidget recordButton;
     private PathListWidget pathListWidget;
+    private int lastPathCount = -1;
 
     private boolean showingMyPaths = true;
 
@@ -56,9 +57,21 @@ public class MainMenuScreen extends Screen {
         }).dimensions(this.width - 105, 5, 100, 20).build();
         this.addDrawableChild(settingsButton);
 
-        recordButton = ButtonWidget.builder(Text.of("Start Recording"), button -> {
+        recordButton = ButtonWidget.builder(Text.of(getRecordingLabel()), button -> {
+            boolean starting = !pathManager.isRecording();
+            if (starting) {
+                pathManager.startRecordingLocal();
+            } else {
+                pathManager.stopRecordingLocal();
+            }
             ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload());
-        }).dimensions(5, 5, 100, 20).build();
+            // Update label immediately
+            recordButton.setMessage(Text.of(getRecordingLabel()));
+            if (starting) {
+                // Close menu so recording can proceed unobstructed
+                this.client.setScreen(null);
+            }
+        }).dimensions(5, 5, 110, 20).build();
         this.addDrawableChild(recordButton);
 
         pathListWidget = new PathListWidget(this.client, this.width, this.height - 80, 60, 20);
@@ -72,6 +85,31 @@ public class MainMenuScreen extends Screen {
         List<PathData> paths = new ArrayList<>(showingMyPaths ? pathManager.getMyPaths() : pathManager.getSharedPaths());
         for (PathData path : paths) {
             pathListWidget.addEntry(new PathListWidget.PathEntry(path, pathManager, showingMyPaths));
+        }
+        lastPathCount = paths.size();
+        // Also refresh record button label in case state changed externally
+        if (recordButton != null) {
+            recordButton.setMessage(Text.of(getRecordingLabel()));
+        }
+    }
+
+    private String getRecordingLabel() {
+        return pathManager.isRecording() ? "Stop Recording" : "Start Recording";
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        int currentCount = (showingMyPaths ? pathManager.getMyPaths().size() : pathManager.getSharedPaths().size());
+        if (currentCount != lastPathCount) {
+            updatePathList();
+        }
+        // Ensure label stays in sync with possible keybind toggles
+        if (recordButton != null) {
+            String desired = getRecordingLabel();
+            if (!recordButton.getMessage().getString().equals(desired)) {
+                recordButton.setMessage(Text.of(desired));
+            }
         }
     }
 
