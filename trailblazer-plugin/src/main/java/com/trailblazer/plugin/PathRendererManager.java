@@ -28,7 +28,15 @@ public class PathRendererManager {
     private final Map<UUID, BukkitTask> activeRenderTasks = new ConcurrentHashMap<>();
     private final TrailblazerPlugin plugin;
     private final double markerSpacing = 3.0;
-    private static final Particle.DustOptions TRAIL_PARTICLE = new Particle.DustOptions(Color.fromRGB(51, 127, 255), 1.0f);
+    private static final java.util.Map<Integer, Particle.DustOptions> DUST_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static Particle.DustOptions dustFor(int argb) {
+        return DUST_CACHE.computeIfAbsent(argb, c -> {
+            int r = (c >> 16) & 0xFF;
+            int g = (c >> 8) & 0xFF;
+            int b = c & 0xFF;
+            return new Particle.DustOptions(Color.fromRGB(r, g, b), 1.0f);
+        });
+    }
 
     public PathRendererManager(TrailblazerPlugin plugin) {
         this.plugin = plugin;
@@ -82,7 +90,8 @@ public class PathRendererManager {
     }
 
     private void renderInterpolatedParticleTrail(Player player, PathData path, World world) {
-        List<Vector3d> points = path.getPoints();
+    List<Vector3d> points = path.getPoints();
+    final Particle.DustOptions dust = dustFor(path.getColorArgb());
         for (int i = 0; i < points.size() - 1; i++) {
             Vector start = new Vector(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
             Vector end = new Vector(points.get(i + 1).getX(), points.get(i + 1).getY(), points.get(i + 1).getZ());
@@ -93,7 +102,7 @@ public class PathRendererManager {
             
             for (double d = 0; d < distance; d += 0.25) {
                 Vector pos = start.add(direction.multiply(d));
-                player.spawnParticle(Particle.DUST, pos.toLocation(world), 1, TRAIL_PARTICLE);
+                player.spawnParticle(Particle.DUST, pos.toLocation(world), 1, dust);
             }
         }
     }

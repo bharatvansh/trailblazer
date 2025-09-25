@@ -2,6 +2,8 @@ package com.trailblazer.fabric.rendering;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.joml.Vector3f;
 
@@ -24,9 +26,18 @@ public class PathRenderer {
     private final ClientPathManager clientPathManager;
     private final RenderSettingsManager renderSettingsManager;
 
-    // A nice blue color for the particle trail
-    private static final DustParticleEffect TRAIL_PARTICLE = new DustParticleEffect(new Vector3f(0.2f, 0.5f, 1.0f), 1.0f);
+    // Cache of path color -> DustParticleEffect
+    private static final Map<Integer, DustParticleEffect> COLOR_CACHE = new ConcurrentHashMap<>();
     private static final DustParticleEffect LIVE_TRAIL_PARTICLE = new DustParticleEffect(new Vector3f(1.0f, 0.5f, 0.0f), 1.0f);
+
+    private DustParticleEffect effectFor(int argb) {
+        return COLOR_CACHE.computeIfAbsent(argb, c -> {
+            float r = ((c >> 16) & 0xFF) / 255f;
+            float g = ((c >> 8) & 0xFF) / 255f;
+            float b = (c & 0xFF) / 255f;
+            return new DustParticleEffect(new Vector3f(r, g, b), 1.0f);
+        });
+    }
 
 
     public PathRenderer(ClientPathManager clientPathManager, RenderSettingsManager renderSettingsManager) {
@@ -79,6 +90,8 @@ public class PathRenderer {
      */
     private void renderInterpolatedParticleTrail(PathData path, ClientWorld world, boolean isLive) {
         List<Vector3d> points = path.getPoints();
+        final int color = path.getColorArgb();
+        final DustParticleEffect trailEffect = effectFor(color);
         for (int i = 0; i < points.size() - 1; i++) {
             Vec3d start = new Vec3d(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
             Vec3d end = new Vec3d(points.get(i + 1).getX(), points.get(i + 1).getY(), points.get(i + 1).getZ());
@@ -88,11 +101,11 @@ public class PathRenderer {
             
             // Spawn a particle at small intervals along the line between points
             for (double d = 0; d < distance; d += 0.25) {
-                Vec3d pos = start.add(direction.multiply(d));
-                 world.addParticle(
-                    isLive ? LIVE_TRAIL_PARTICLE : TRAIL_PARTICLE,
-                    pos.x, pos.y, pos.z,
-                    0, 0, 0);
+        Vec3d pos = start.add(direction.multiply(d));
+        world.addParticle(
+            isLive ? LIVE_TRAIL_PARTICLE : trailEffect,
+            pos.x, pos.y, pos.z,
+            0, 0, 0);
             }
         }
     }
@@ -104,6 +117,8 @@ public class PathRenderer {
         double spacing = renderSettingsManager.getMarkerSpacing();
         double distanceSinceLastMarker = 0.0;
         Vec3d lastPoint = null;
+        final int color = path.getColorArgb();
+        final DustParticleEffect trailEffect = effectFor(color);
 
         for (Vector3d point : path.getPoints()) {
             Vec3d currentPoint = new Vec3d(point.getX(), point.getY(), point.getZ());
@@ -112,12 +127,11 @@ public class PathRenderer {
             }
 
             if (lastPoint == null || distanceSinceLastMarker >= spacing) {
-                world.addParticle(
-                        isLive ? ParticleTypes.FLAME : ParticleTypes.INSTANT_EFFECT,
-                        currentPoint.x,
-                        currentPoint.y,
-                        currentPoint.z,
-                        0, 0, 0);
+                if (isLive) {
+                    world.addParticle(ParticleTypes.FLAME, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
+                } else {
+                    world.addParticle(trailEffect, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
+                }
                 distanceSinceLastMarker = 0.0; // Reset distance
             }
             lastPoint = currentPoint;
@@ -131,6 +145,8 @@ public class PathRenderer {
         double spacing = renderSettingsManager.getMarkerSpacing();
         double distanceSinceLastMarker = 0.0;
         Vec3d lastPoint = null;
+        final int color = path.getColorArgb();
+        final DustParticleEffect trailEffect = effectFor(color);
 
         List<Vector3d> points = path.getPoints();
         for (int i = 0; i < points.size(); i++) {
@@ -146,7 +162,7 @@ public class PathRenderer {
                 Optional<Vec3d> nextPointOpt = findNextDistinctPoint(points, i);
                 if (nextPointOpt.isPresent()) {
                     Vec3d direction = nextPointOpt.get().subtract(currentPoint).normalize();
-                    spawnArrow(world, currentPoint, direction, isLive);
+                    spawnArrow(world, currentPoint, direction, isLive, trailEffect);
                 }
                 distanceSinceLastMarker = 0.0; // Reset distance
             }
@@ -171,10 +187,13 @@ public class PathRenderer {
     /**
      * Spawns a small arrow shape using particles.
      */
-    private void spawnArrow(ClientWorld world, Vec3d position, Vec3d direction, boolean isLive) {
+    private void spawnArrow(ClientWorld world, Vec3d position, Vec3d direction, boolean isLive, DustParticleEffect trailEffect) {
         // The main point of the arrow tip
-        world.addParticle(isLive ? ParticleTypes.FLAME : ParticleTypes.END_ROD,
-                position.x, position.y, position.z, 0, 0, 0);
+        if (isLive) {
+            world.addParticle(ParticleTypes.FLAME, position.x, position.y, position.z, 0, 0, 0);
+        } else {
+            world.addParticle(trailEffect, position.x, position.y, position.z, 0, 0, 0);
+        }
 
         // Calculate a perpendicular vector for the arrow wings
         Vec3d perpendicular = new Vec3d(-direction.z, 0, direction.x).normalize();
@@ -186,9 +205,12 @@ public class PathRenderer {
         Vec3d wing1 = position.subtract(direction.multiply(0.6)).add(perpendicular.multiply(0.4));
         Vec3d wing2 = position.subtract(direction.multiply(0.6)).subtract(perpendicular.multiply(0.4));
 
-        world.addParticle(isLive ? ParticleTypes.SOUL_FIRE_FLAME : ParticleTypes.CRIT,
-                wing1.x, wing1.y, wing1.z, 0, 0, 0);
-        world.addParticle(isLive ? ParticleTypes.SOUL_FIRE_FLAME : ParticleTypes.CRIT,
-                wing2.x, wing2.y, wing2.z, 0, 0, 0);
+        if (isLive) {
+            world.addParticle(ParticleTypes.SOUL_FIRE_FLAME, wing1.x, wing1.y, wing1.z, 0, 0, 0);
+            world.addParticle(ParticleTypes.SOUL_FIRE_FLAME, wing2.x, wing2.y, wing2.z, 0, 0, 0);
+        } else {
+            world.addParticle(trailEffect, wing1.x, wing1.y, wing1.z, 0, 0, 0);
+            world.addParticle(trailEffect, wing2.x, wing2.y, wing2.z, 0, 0, 0);
+        }
     }
 }

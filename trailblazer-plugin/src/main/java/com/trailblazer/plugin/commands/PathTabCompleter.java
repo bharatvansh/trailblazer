@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class PathTabCompleter implements TabCompleter {
 
     private final PathDataManager pathDataManager;
-    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode");
+    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode", "share", "color");
     // This will now correctly reflect the new RenderMode names
     private static final List<String> RENDER_MODES = Arrays.stream(RenderMode.values())
             .map(Enum::name)
@@ -48,7 +48,18 @@ public class PathTabCompleter implements TabCompleter {
                     return StringUtil.copyPartialMatches(args[1], pathNames, new ArrayList<>());
                 case "rendermode":
                     return StringUtil.copyPartialMatches(args[1], RENDER_MODES, new ArrayList<>());
+                case "color":
+                    List<String> colorPathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
+                            .map(com.trailblazer.api.PathData::getPathName)
+                            .collect(Collectors.toList());
+                    return StringUtil.copyPartialMatches(args[1], colorPathNames, new ArrayList<>());
             }
+        }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("color")) {
+            // Suggest palette color names
+            List<String> names = List.of("red","orange","yellow","green","cyan","blue","purple","pink","white");
+            return StringUtil.copyPartialMatches(args[2], names, new ArrayList<>());
         }
 
         return new ArrayList<>(); // No suggestions

@@ -59,11 +59,41 @@ public class PathCommand implements CommandExecutor {
             case "share":
                 handleShare(player, args);
                 break;
+            case "color":
+                handleColor(player, args);
+                break;
             default:
                 sendHelpMessage(player);
                 break;
         }
         return true;
+    }
+
+    private void handleColor(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(Component.text("Usage: /path color <name> <colorName|#RRGGBB>", NamedTextColor.RED));
+            return;
+        }
+        String pathName = args[1];
+        String colorArg = args[2];
+        List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
+        Optional<PathData> pathOpt = paths.stream().filter(p -> p.getPathName().equalsIgnoreCase(pathName)).findFirst();
+        if (pathOpt.isEmpty()) {
+            player.sendMessage(Component.text("Path '" + pathName + "' not found.", NamedTextColor.RED));
+            return;
+        }
+        PathData path = pathOpt.get();
+        java.util.Optional<Integer> parsed = com.trailblazer.api.PathColors.parse(colorArg);
+        if (parsed.isEmpty()) {
+            player.sendMessage(Component.text("Invalid color. Use a name or #RRGGBB.", NamedTextColor.RED));
+            return;
+        }
+        path.setColorArgb(parsed.get());
+        // Persist by rewriting file (reuse rename logic pattern)
+        pathDataManager.savePath(player.getUniqueId(), path);
+        player.sendMessage(Component.text("Color for path '" + path.getPathName() + "' set to " + com.trailblazer.api.PathColors.nameOrHex(path.getColorArgb()), NamedTextColor.GREEN));
+        // If currently rendering on server fallback, re-start to apply new color (will matter after server side color usage implemented)
+        plugin.getPathRendererManager().startRendering(player, path);
     }
 
     private void handleView(Player player, String[] args) {
@@ -220,5 +250,6 @@ public class PathCommand implements CommandExecutor {
         player.sendMessage(Component.text("/path rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path you own", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path share <path> <player>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with another player", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/path color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
     }
 }

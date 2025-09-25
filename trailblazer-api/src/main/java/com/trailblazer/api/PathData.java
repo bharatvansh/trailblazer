@@ -20,6 +20,8 @@ public class PathData implements Serializable {
     private final long creationTimestamp;
     private final String dimension;
     private final List<Vector3d> points;
+    // Stored as 0xAARRGGBB. 0 or missing implies uninitialized -> lazily assigned.
+    private int colorArgb; 
 
     public PathData(UUID pathId, String pathName, UUID ownerUUID, String ownerName, long creationTimestamp, String dimension, List<Vector3d> points) {
         // Validation to ensure data integrity
@@ -37,6 +39,13 @@ public class PathData implements Serializable {
         this.creationTimestamp = creationTimestamp;
         this.dimension = dimension;
         this.points = points;
+        this.colorArgb = 0; // Will be lazily assigned when accessed if still zero
+    }
+
+    /** New constructor including explicit color */
+    public PathData(UUID pathId, String pathName, UUID ownerUUID, String ownerName, long creationTimestamp, String dimension, List<Vector3d> points, int colorArgb) {
+        this(pathId, pathName, ownerUUID, ownerName, creationTimestamp, dimension, points);
+        this.colorArgb = (colorArgb == 0 ? PathColors.assignColorFor(pathId) : colorArgb);
     }
 
     // Getters
@@ -66,6 +75,19 @@ public class PathData implements Serializable {
 
     public List<Vector3d> getPoints() {
         return points;
+    }
+
+    /** Returns the ARGB color for this path, assigning one if missing (migration support). */
+    public int getColorArgb() {
+        if (colorArgb == 0) {
+            colorArgb = PathColors.assignColorFor(pathId);
+        }
+        return colorArgb;
+    }
+
+    public void setColorArgb(int colorArgb) {
+        if (colorArgb == 0) return; // ignore invalid
+        this.colorArgb = colorArgb;
     }
 
     // Setter for renaming

@@ -37,7 +37,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         private final PathData path;
         private final ClientPathManager pathManager;
         private final boolean isMyPath;
-        private final ButtonWidget toggleButton;
+    private final ButtonWidget toggleButton;
         private final ButtonWidget shareButton;
         private final ButtonWidget editButton;
         private final ButtonWidget deleteButton;
@@ -51,6 +51,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 pathManager.togglePathVisibility(path.getPathId());
                 button.setMessage(getToggleButtonText());
             }).build();
+
 
             this.shareButton = ButtonWidget.builder(Text.of("Share"), button -> {
                 ClientPlayNetworking.send(new SharePathPayload(path.getPathId()));
@@ -69,6 +70,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     pathManager.removeSharedPath(path.getPathId());
                 }
             }).build();
+
         }
 
         @Override

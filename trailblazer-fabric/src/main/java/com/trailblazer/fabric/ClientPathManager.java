@@ -161,7 +161,7 @@ public class ClientPathManager {
                 new Vector3d(5, 100, 20),
                 new Vector3d(0, 100, 0)
         );
-        PathData dummyPath = new PathData(dummyId, "DummyPath", UUID.randomUUID(), "TestPlayer", 0L, "minecraft:overworld", points);
+    PathData dummyPath = new PathData(dummyId, "DummyPath", UUID.randomUUID(), "TestPlayer", 0L, "minecraft:overworld", points);
 
         addMyPath(dummyPath);
         setPathVisible(dummyId);
