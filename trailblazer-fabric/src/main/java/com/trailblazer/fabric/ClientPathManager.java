@@ -18,24 +18,32 @@ import com.trailblazer.api.Vector3d;
  * For now, it's a simple in-memory store.
  */
 public class ClientPathManager {
-    // A map to hold all paths the client is aware of, keyed by their unique ID.
-    private final Map<UUID, PathData> paths = new HashMap<>();
+    // A map to hold all of the player's own paths.
+    private final Map<UUID, PathData> myPaths = new HashMap<>();
+    // A map to hold all paths shared with the player.
+    private final Map<UUID, PathData> sharedPaths = new HashMap<>();
     // A set to track which paths should currently be visible.
     private final Set<UUID> visiblePaths = new HashSet<>();
     // A special field to hold the path currently being recorded in real-time.
     private PathData livePath = null;
 
-    public void addPath(PathData path) {
-        paths.put(path.getPathId(), path);
+    public void addMyPath(PathData path) {
+        myPaths.put(path.getPathId(), path);
+    }
+
+    public void addSharedPath(PathData path) {
+        sharedPaths.put(path.getPathId(), path);
+        setPathVisible(path.getPathId()); // Make shared paths visible by default
     }
 
     public void removePath(UUID pathId) {
-        paths.remove(pathId);
+        myPaths.remove(pathId);
+        sharedPaths.remove(pathId);
         visiblePaths.remove(pathId);
     }
 
     public void setPathVisible(UUID pathId) {
-        if (paths.containsKey(pathId)) {
+        if (myPaths.containsKey(pathId) || sharedPaths.containsKey(pathId)) {
             visiblePaths.add(pathId);
         }
     }
@@ -83,11 +91,23 @@ public class ClientPathManager {
     public Collection<PathData> getVisiblePaths() {
         List<PathData> result = new ArrayList<>();
         for (UUID id : visiblePaths) {
-            if (paths.containsKey(id)) {
-                result.add(paths.get(id));
+            PathData path = myPaths.get(id);
+            if (path == null) {
+                path = sharedPaths.get(id);
+            }
+            if (path != null) {
+                result.add(path);
             }
         }
         return result;
+    }
+
+    public Collection<PathData> getMyPaths() {
+        return myPaths.values();
+    }
+
+    public Collection<PathData> getSharedPaths() {
+        return sharedPaths.values();
     }
 
     // --- FOR TESTING ---
@@ -103,7 +123,7 @@ public class ClientPathManager {
         );
         PathData dummyPath = new PathData(dummyId, "DummyPath", UUID.randomUUID(), "TestPlayer", 0L, "minecraft:overworld", points);
 
-        addPath(dummyPath);
+        addMyPath(dummyPath);
         setPathVisible(dummyId);
         TrailblazerFabricClient.LOGGER.info("Loaded dummy path for rendering test.");
     }

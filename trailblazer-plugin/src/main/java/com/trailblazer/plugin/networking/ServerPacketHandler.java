@@ -25,6 +25,7 @@ import com.trailblazer.plugin.networking.payload.c2s.ToggleRecordingPayload;
 import com.trailblazer.plugin.networking.payload.s2c.HideAllPathsPayload;
 import com.trailblazer.plugin.networking.payload.s2c.LivePathUpdatePayload;
 import com.trailblazer.plugin.networking.payload.s2c.PathDataSyncPayload;
+import com.trailblazer.plugin.networking.payload.s2c.SharePathPayload;
 import com.trailblazer.plugin.networking.payload.s2c.StopLivePathPayload;
 
 import net.kyori.adventure.text.Component;
@@ -49,6 +50,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, HideAllPathsPayload.CHANNEL);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, LivePathUpdatePayload.CHANNEL);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, StopLivePathPayload.CHANNEL);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, SharePathPayload.CHANNEL_NAME);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ToggleRecordingPayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
     }
@@ -186,5 +188,12 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         }
         StopLivePathPayload payload = new StopLivePathPayload();
         player.sendPluginMessage(plugin, StopLivePathPayload.CHANNEL, payload.toBytes());
+    }
+
+    public void sendSharePath(Player targetPlayer, PathData pathData) {
+        // The check for whether the player is modded is now handled in PathCommand.
+        // This method is now only responsible for creating and sending the packet to modded clients.
+        SharePathPayload payload = new SharePathPayload(pathData);
+        targetPlayer.sendPluginMessage(plugin, SharePathPayload.CHANNEL_NAME, payload.toBytes());
     }
 }
