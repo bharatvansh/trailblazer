@@ -66,7 +66,7 @@ public class KeyBindingManager {
 
             while (openMenuKey.wasPressed()) {
                 if (client.player != null) {
-                    client.setScreen(new com.trailblazer.fabric.ui.MainMenuScreen(clientPathManager));
+                    client.setScreen(new com.trailblazer.fabric.ui.MainMenuScreen(clientPathManager, renderSettingsManager));
                 }
             }
         });

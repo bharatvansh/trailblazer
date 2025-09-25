@@ -1,8 +1,10 @@
 package com.trailblazer.fabric.ui;
 
 import com.trailblazer.fabric.ClientPathManager;
+import com.trailblazer.fabric.RenderSettingsManager;
 import com.trailblazer.api.PathData;
 
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -13,15 +15,19 @@ import java.util.List;
 
 public class MainMenuScreen extends Screen {
     private final ClientPathManager pathManager;
+    private final RenderSettingsManager renderSettingsManager;
     private ButtonWidget myPathsTab;
     private ButtonWidget sharedWithMeTab;
+    private ButtonWidget settingsButton;
+    private ButtonWidget recordButton;
     private PathListWidget pathListWidget;
 
     private boolean showingMyPaths = true;
 
-    public MainMenuScreen(ClientPathManager pathManager) {
+    public MainMenuScreen(ClientPathManager pathManager, RenderSettingsManager renderSettingsManager) {
         super(Text.of("Trailblazer Main Menu"));
         this.pathManager = pathManager;
+        this.renderSettingsManager = renderSettingsManager;
     }
 
     @Override
@@ -44,6 +50,16 @@ public class MainMenuScreen extends Screen {
 
         this.addDrawableChild(myPathsTab);
         this.addDrawableChild(sharedWithMeTab);
+
+        settingsButton = ButtonWidget.builder(Text.of("Settings"), button -> {
+            this.client.setScreen(new SettingsScreen(renderSettingsManager, this));
+        }).dimensions(this.width - 105, 5, 100, 20).build();
+        this.addDrawableChild(settingsButton);
+
+        recordButton = ButtonWidget.builder(Text.of("Start Recording"), button -> {
+            ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload());
+        }).dimensions(5, 5, 100, 20).build();
+        this.addDrawableChild(recordButton);
 
         pathListWidget = new PathListWidget(this.client, this.width, this.height - 80, 60, 20);
         this.addDrawableChild(pathListWidget);

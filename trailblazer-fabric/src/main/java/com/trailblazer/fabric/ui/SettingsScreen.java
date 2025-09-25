@@ -9,10 +9,12 @@ import net.minecraft.text.Text;
 
 public class SettingsScreen extends Screen {
     private final RenderSettingsManager renderSettingsManager;
+    private final Screen parent;
 
-    public SettingsScreen(RenderSettingsManager renderSettingsManager) {
+    public SettingsScreen(RenderSettingsManager renderSettingsManager, Screen parent) {
         super(Text.of("Trailblazer Settings"));
         this.renderSettingsManager = renderSettingsManager;
+        this.parent = parent;
     }
 
     @Override
@@ -24,16 +26,21 @@ public class SettingsScreen extends Screen {
         int buttonX = this.width / 2 - buttonWidth / 2;
         int buttonY = this.height / 2 - 40;
 
-        this.addDrawableChild(ButtonWidget.builder(Text.of("Render Mode: " + renderSettingsManager.getRenderMode()), button -> {
+        ButtonWidget renderModeButton = ButtonWidget.builder(Text.of("Render Mode: " + renderSettingsManager.getRenderMode()), button -> {
             RenderMode currentMode = renderSettingsManager.getRenderMode();
             RenderMode nextMode = currentMode.next();
             renderSettingsManager.setRenderMode(nextMode);
             button.setMessage(Text.of("Render Mode: " + nextMode));
-        }).dimensions(buttonX, buttonY, buttonWidth, buttonHeight).build());
+        }).dimensions(buttonX, buttonY, buttonWidth, buttonHeight).build();
+        this.addDrawableChild(renderModeButton);
 
         this.addDrawableChild(ButtonWidget.builder(Text.of("Configure Keybinding"), button -> {
             // Logic to open the keybinding configuration screen
         }).dimensions(buttonX, buttonY + 30, buttonWidth, buttonHeight).build());
+
+        this.addDrawableChild(ButtonWidget.builder(Text.of("Back"), button -> {
+            this.client.setScreen(parent);
+        }).dimensions(this.width / 2 - 100, this.height - 40, 200, 20).build());
     }
 
     @Override
