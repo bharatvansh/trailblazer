@@ -53,6 +53,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, SharePathPayload.CHANNEL_NAME);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ToggleRecordingPayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
     }
 
     public void setRecordingManager(PathRecordingManager recordingManager) {
@@ -103,6 +104,37 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 recordingManager.startRecording(player);
                 player.sendMessage(Component.text("Path recording started.", NamedTextColor.GREEN));
             }
+        }
+
+        if (channel.equalsIgnoreCase("trailblazer:delete_path")) {
+            try {
+                UUID pathId;
+                if (message.length == 16) {
+                    java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(message);
+                    long msb = bb.getLong();
+                    long lsb = bb.getLong();
+                    pathId = new UUID(msb, lsb);
+                } else {
+                    String raw = new String(message, java.nio.charset.StandardCharsets.UTF_8).trim();
+                    pathId = UUID.fromString(raw);
+                }
+                List<PathData> paths = dataManager.loadPaths(player.getUniqueId());
+                boolean owned = paths.stream().anyMatch(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(player.getUniqueId()));
+                if (owned) {
+                    dataManager.deletePath(player.getUniqueId(), pathId);
+                    List<PathData> remaining = dataManager.loadPaths(player.getUniqueId());
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        if (remaining.isEmpty()) {
+                            sendHideAllPaths(player); // clear client
+                        } else {
+                            sendAllPathData(player, remaining);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to process delete path payload from " + player.getName() + ": " + e.getMessage());
+            }
+            return;
         }
     }
 

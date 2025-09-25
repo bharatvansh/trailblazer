@@ -3,7 +3,6 @@ package com.trailblazer.fabric.ui;
 import com.trailblazer.api.PathData;
 import com.trailblazer.fabric.ClientPathManager;
 import com.trailblazer.fabric.networking.payload.c2s.SharePathPayload;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.ElementListWidget;
@@ -11,7 +10,8 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
-import java.util.ArrayList;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import com.trailblazer.fabric.networking.payload.c2s.DeletePathPayload;
 import java.util.List;
 
 public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> {
@@ -41,6 +41,9 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         private final ButtonWidget shareButton;
         private final ButtonWidget editButton;
         private final ButtonWidget deleteButton;
+    private boolean awaitingDeleteConfirm = false;
+    private long deleteConfirmStartMs = 0L;
+    private static final long CONFIRM_TIMEOUT_MS = 5000L;
 
         public PathEntry(PathData path, ClientPathManager pathManager, boolean isMyPath) {
             this.path = path;
@@ -64,8 +67,20 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             }).build();
 
             this.deleteButton = ButtonWidget.builder(Text.of("Delete"), button -> {
+                long now = System.currentTimeMillis();
+                if (!awaitingDeleteConfirm || now - deleteConfirmStartMs > CONFIRM_TIMEOUT_MS) {
+                    awaitingDeleteConfirm = true;
+                    deleteConfirmStartMs = now;
+                    button.setMessage(Text.of("Confirm"));
+                    return;
+                }
+                // Second click within window -> perform deletion
                 if (isMyPath) {
+                    // Optimistic local removal
                     pathManager.deletePath(path.getPathId());
+                    if (ClientPlayNetworking.canSend(DeletePathPayload.ID)) {
+                        ClientPlayNetworking.send(new DeletePathPayload(path.getPathId()));
+                    }
                 } else {
                     pathManager.removeSharedPath(path.getPathId());
                 }
@@ -113,6 +128,12 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             deleteButton.setWidth(buttonWidth);
             deleteButton.setHeight(buttonHeight);
             deleteButton.render(context, mouseX, mouseY, tickDelta);
+
+            // Reset confirm state if timeout elapsed (and user didn't click second time)
+            if (awaitingDeleteConfirm && System.currentTimeMillis() - deleteConfirmStartMs > CONFIRM_TIMEOUT_MS) {
+                awaitingDeleteConfirm = false;
+                deleteButton.setMessage(Text.of("Delete"));
+            }
         }
 
         private Text getToggleButtonText() {
