@@ -9,6 +9,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,8 +47,9 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             this.pathManager = pathManager;
             this.isMyPath = isMyPath;
 
-            this.toggleButton = ButtonWidget.builder(Text.of("Toggle"), button -> {
+            this.toggleButton = ButtonWidget.builder(getToggleButtonText(), button -> {
                 pathManager.togglePathVisibility(path.getPathId());
+                button.setMessage(getToggleButtonText());
             }).build();
 
             this.shareButton = ButtonWidget.builder(Text.of("Share"), button -> {
@@ -109,6 +111,13 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             deleteButton.setWidth(buttonWidth);
             deleteButton.setHeight(buttonHeight);
             deleteButton.render(context, mouseX, mouseY, tickDelta);
+        }
+
+        private Text getToggleButtonText() {
+            boolean isVisible = pathManager.isPathVisible(path.getPathId());
+            return Text.of("Toggle: " + (isVisible ? "ON" : "OFF"))
+                .copy()
+                .formatted(isVisible ? Formatting.GREEN : Formatting.RED);
         }
 
         @Override

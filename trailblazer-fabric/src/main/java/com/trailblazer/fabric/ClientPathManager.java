@@ -70,6 +70,10 @@ public class ClientPathManager {
         visiblePaths.remove(pathId);
     }
 
+    public boolean isPathVisible(UUID pathId) {
+        return visiblePaths.contains(pathId);
+    }
+
     public void hideAllPaths() {
         visiblePaths.clear();
     }
