@@ -1,5 +1,7 @@
 package com.trailblazer.plugin.networking;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +38,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private final TrailblazerPlugin plugin;
     private final Gson gson = new Gson();
     private final Set<UUID> moddedPlayers = new HashSet<>();
+    private static final String UPDATE_METADATA_CHANNEL = "trailblazer:update_path_metadata";
 
     private PathRecordingManager recordingManager;
     private final PathDataManager dataManager;
@@ -54,6 +57,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ToggleRecordingPayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
     }
 
     public void setRecordingManager(PathRecordingManager recordingManager) {
@@ -134,6 +138,11 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to process delete path payload from " + player.getName() + ": " + e.getMessage());
             }
+            return;
+        }
+
+        if (channel.equalsIgnoreCase(UPDATE_METADATA_CHANNEL)) {
+            handleMetadataUpdate(player, message);
             return;
         }
     }
@@ -227,5 +236,42 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         // This method is now only responsible for creating and sending the packet to modded clients.
         SharePathPayload payload = new SharePathPayload(pathData);
         targetPlayer.sendPluginMessage(plugin, SharePathPayload.CHANNEL_NAME, payload.toBytes());
+    }
+
+    private void handleMetadataUpdate(Player player, byte[] message) {
+        try {
+            ByteBuffer buffer = ByteBuffer.wrap(message);
+            UUID pathId = new UUID(buffer.getLong(), buffer.getLong());
+            int color = buffer.getInt();
+            int nameLength = readVarInt(buffer);
+            byte[] nameBytes = new byte[nameLength];
+            buffer.get(nameBytes);
+            String newName = new String(nameBytes, StandardCharsets.UTF_8);
+
+            List<PathData> updatedPaths = dataManager.updateMetadata(player.getUniqueId(), pathId, newName, color);
+            if (updatedPaths != null) {
+                plugin.getServer().getScheduler().runTask(plugin, () -> sendAllPathData(player, updatedPaths));
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to process update metadata payload from " + player.getName() + ": " + e.getMessage());
+        }
+    }
+
+    private static int readVarInt(ByteBuffer buffer) {
+        int numRead = 0;
+        int result = 0;
+        byte read;
+        do {
+            read = buffer.get();
+            int value = (read & 0x7F);
+            result |= (value << (7 * numRead));
+
+            numRead++;
+            if (numRead > 5) {
+                throw new IllegalStateException("VarInt too big");
+            }
+        } while ((read & 0x80) != 0);
+
+        return result;
     }
 }

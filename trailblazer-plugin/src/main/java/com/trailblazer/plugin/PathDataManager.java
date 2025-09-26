@@ -99,4 +99,24 @@ public class PathDataManager {
             e.printStackTrace();
         }
     }
+
+    public List<PathData> updateMetadata(UUID playerUUID, UUID pathId, String newName, int colorArgb) {
+        List<PathData> paths = loadPaths(playerUUID);
+        boolean updated = false;
+        for (PathData path : paths) {
+            if (!path.getPathId().equals(pathId)) {
+                continue;
+            }
+            if (newName != null && !newName.isBlank()) {
+                path.setPathName(newName);
+            }
+            if (colorArgb != 0) {
+                path.setColorArgb(colorArgb);
+            }
+            savePath(playerUUID, path);
+            updated = true;
+            break;
+        }
+        return updated ? paths : null;
+    }
 }

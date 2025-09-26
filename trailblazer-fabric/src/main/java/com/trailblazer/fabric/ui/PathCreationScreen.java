@@ -2,10 +2,10 @@ package com.trailblazer.fabric.ui;
 
 import com.trailblazer.api.PathData;
 import com.trailblazer.fabric.ClientPathManager;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
 import net.minecraft.client.gui.DrawContext;
 
@@ -101,7 +101,11 @@ public class PathCreationScreen extends Screen {
                 }
                 onSave.accept(editingPath);
             } else {
-                PathData newPath = new PathData(UUID.randomUUID(), name, UUID.randomUUID(), "Player", System.currentTimeMillis(), "overworld", List.of());
+                UUID ownerUuid = pathManager.getLocalPlayerUuid() != null ? pathManager.getLocalPlayerUuid() : UUID.randomUUID();
+                String ownerName = MinecraftClient.getInstance().player != null ? MinecraftClient.getInstance().player.getGameProfile().getName() : "Player";
+                String dimension = MinecraftClient.getInstance().player != null ?
+                        MinecraftClient.getInstance().player.getWorld().getRegistryKey().getValue().toString() : "minecraft:overworld";
+                PathData newPath = new PathData(UUID.randomUUID(), name, ownerUuid, ownerName, System.currentTimeMillis(), dimension, List.of());
                 if (workingColor != 0) {
                     newPath.setColorArgb(workingColor);
                 }

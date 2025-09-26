@@ -2,7 +2,10 @@ package com.trailblazer.fabric.ui;
 
 import com.trailblazer.api.PathData;
 import com.trailblazer.fabric.ClientPathManager;
+import com.trailblazer.fabric.ClientPathManager.PathOrigin;
+import com.trailblazer.fabric.ServerIntegrationBridge;
 import com.trailblazer.fabric.networking.payload.c2s.SharePathPayload;
+import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.ElementListWidget;
@@ -34,9 +37,10 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
     }
 
     public static class PathEntry extends ElementListWidget.Entry<PathEntry> {
-        private final PathData path;
-        private final ClientPathManager pathManager;
-        private final boolean isMyPath;
+    private final PathData path;
+    private final ClientPathManager pathManager;
+    private final boolean isMyPath;
+    private final PathOrigin origin;
     private final ButtonWidget toggleButton;
         private final ButtonWidget shareButton;
         private final ButtonWidget editButton;
@@ -45,10 +49,11 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
     private long deleteConfirmStartMs = 0L;
     private static final long CONFIRM_TIMEOUT_MS = 5000L;
 
-        public PathEntry(PathData path, ClientPathManager pathManager, boolean isMyPath) {
+    public PathEntry(PathData path, ClientPathManager pathManager, boolean isMyPath) {
             this.path = path;
             this.pathManager = pathManager;
             this.isMyPath = isMyPath;
+        this.origin = pathManager.getPathOrigin(path.getPathId());
 
             this.toggleButton = ButtonWidget.builder(getToggleButtonText(), button -> {
                 pathManager.togglePathVisibility(path.getPathId());
@@ -57,14 +62,41 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
 
 
             this.shareButton = ButtonWidget.builder(Text.of("Share"), button -> {
-                ClientPlayNetworking.send(new SharePathPayload(path.getPathId()));
+                if (ServerIntegrationBridge.SERVER_INTEGRATION != null && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported()) {
+                    if (origin == PathOrigin.LOCAL || origin == PathOrigin.SERVER_OWNED) {
+                        ClientPlayNetworking.send(new SharePathPayload(path.getPathId()));
+                    }
+                }
             }).build();
+
+            boolean serverAvailable = ServerIntegrationBridge.SERVER_INTEGRATION != null && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
+            if (origin == PathOrigin.LOCAL) {
+                this.shareButton.active = serverAvailable;
+                this.shareButton.setMessage(Text.of("Share (Server)"));
+            } else if (origin == PathOrigin.SERVER_OWNED) {
+                this.shareButton.active = serverAvailable;
+                this.shareButton.setMessage(Text.of("Share"));
+            } else {
+                this.shareButton.active = false;
+                this.shareButton.setMessage(Text.of("Share (N/A)"));
+            }
 
             this.editButton = ButtonWidget.builder(Text.of("Edit"), button -> {
                 MinecraftClient.getInstance().setScreen(new PathCreationScreen(pathManager, updatedPath -> {
-                    // No action needed here, the path is updated in the creation screen
+                    pathManager.onPathUpdated(updatedPath);
+                    if (origin == PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(UpdatePathMetadataPayload.ID)) {
+                        ClientPlayNetworking.send(new UpdatePathMetadataPayload(
+                                updatedPath.getPathId(),
+                                updatedPath.getPathName(),
+                                updatedPath.getColorArgb()
+                        ));
+                    }
                 }, path));
             }).build();
+            if (origin == PathOrigin.SERVER_SHARED) {
+                this.editButton.active = false;
+                this.editButton.setMessage(Text.of("Edit (Owner)"));
+            }
 
             this.deleteButton = ButtonWidget.builder(Text.of("Delete"), button -> {
                 long now = System.currentTimeMillis();
@@ -75,24 +107,35 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     return;
                 }
                 // Second click within window -> perform deletion
-                if (isMyPath) {
-                    // Optimistic local removal
+                if (origin == PathOrigin.SERVER_SHARED) {
+                    pathManager.removeSharedPath(path.getPathId());
+                } else {
                     pathManager.deletePath(path.getPathId());
-                    if (ClientPlayNetworking.canSend(DeletePathPayload.ID)) {
+                    if (origin == PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(DeletePathPayload.ID)) {
                         ClientPlayNetworking.send(new DeletePathPayload(path.getPathId()));
                     }
-                } else {
-                    pathManager.removeSharedPath(path.getPathId());
                 }
             }).build();
+            if (origin == PathOrigin.SERVER_SHARED) {
+                this.deleteButton.setMessage(Text.of("Remove"));
+            }
 
         }
 
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
-            context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, path.getPathName(), x + 5, y + 5, 0xFFFFFF);
+            int baseX = x + 5;
+            int textY = y + 5;
+            if (origin != null) {
+                String badge = originBadge();
+                int badgeColor = originBadgeColor();
+                context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, badge, baseX, textY, badgeColor);
+                baseX += MinecraftClient.getInstance().textRenderer.getWidth(badge) + 6;
+            }
+            context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, path.getPathName(), baseX, textY, 0xFFFFFF);
             if (!isMyPath) {
-                context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, " (by " + path.getOwnerName() + ")", x + 5 + MinecraftClient.getInstance().textRenderer.getWidth(path.getPathName()), y + 5, 0xAAAAAA);
+                int ownerX = baseX + MinecraftClient.getInstance().textRenderer.getWidth(path.getPathName());
+                context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, " (by " + path.getOwnerName() + ")", ownerX, textY, 0xAAAAAA);
             }
 
             int buttonX = x + entryWidth - 80;
@@ -132,7 +175,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             // Reset confirm state if timeout elapsed (and user didn't click second time)
             if (awaitingDeleteConfirm && System.currentTimeMillis() - deleteConfirmStartMs > CONFIRM_TIMEOUT_MS) {
                 awaitingDeleteConfirm = false;
-                deleteButton.setMessage(Text.of("Delete"));
+                deleteButton.setMessage(origin == PathOrigin.SERVER_SHARED ? Text.of("Remove") : Text.of("Delete"));
             }
         }
 
@@ -157,6 +200,22 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 return List.of(toggleButton, shareButton, editButton, deleteButton);
             }
             return List.of(toggleButton, deleteButton);
+        }
+
+        private String originBadge() {
+            return switch (origin) {
+                case LOCAL -> "[LOCAL]";
+                case SERVER_OWNED -> "[SERVER]";
+                case SERVER_SHARED -> "[SHARED]";
+            };
+        }
+
+        private int originBadgeColor() {
+            return switch (origin) {
+                case LOCAL -> 0x55FF55;
+                case SERVER_OWNED -> 0x55AAFF;
+                case SERVER_SHARED -> 0xFFAA00;
+            };
         }
     }
 }

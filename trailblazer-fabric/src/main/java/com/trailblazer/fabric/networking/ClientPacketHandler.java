@@ -13,6 +13,7 @@ import com.trailblazer.fabric.TrailblazerFabricClient;
 import com.trailblazer.fabric.networking.payload.s2c.HideAllPathsPayload;
 import com.trailblazer.fabric.networking.payload.s2c.LivePathUpdatePayload;
 import com.trailblazer.fabric.networking.payload.s2c.PathDataSyncPayload;
+import com.trailblazer.fabric.networking.payload.s2c.SharedPathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.StopLivePathPayload;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -42,12 +43,7 @@ public class ClientPacketHandler {
                 return;
             }
 
-            context.client().execute(() -> {
-                for (final PathData path : receivedPaths) {
-                    pathManager.addMyPath(path);
-                    pathManager.setPathVisible(path.getPathId());
-                }
-            });
+            context.client().execute(() -> pathManager.applyServerSync(receivedPaths));
         });
 
         // Register a listener for our new "hide all" signal.
@@ -87,5 +83,9 @@ public class ClientPacketHandler {
                 }
             });
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(SharedPathPayload.ID, (payload, context) ->
+            context.client().execute(() -> pathManager.applyServerShare(payload.path()))
+        );
     }
 }

@@ -1,6 +1,53 @@
 ### Page 1 of 2
 
 # Path Sharing Mod
+## Trailblazer Distribution Overview (Updated)
+
+Artifacts:
+1. Fabric Client Mod (`trailblazer-fabric`):
+  - Records player movement locally (singleplayer or any server).
+  - Renders stored + shared paths.
+  - Persists paths to per-world folder (singleplayer) or a per-server cache directory.
+  - Provides local commands: `/tblocal list`, `/tblocal export <uuid>`.
+  - Automatically detects if the connected server supports Trailblazer (handshake channel presence) and enables Share buttons only then.
+2. Server Plugin (`trailblazer-plugin` - Paper/Purpur):
+  - Authoritative shared storage, syncing & live updates.
+  - Accepts client share / toggle / delete requests and broadcasts.
+
+Forge / Fabric dedicated server module not yet included; client still works standalone (local paths only).
+
+### Standalone Client Behavior
+If you join a server without the plugin:
+- Recording still works locally.
+- Paths saved to: `saves/<world>/trailblazer/paths` (singleplayer) or `.minecraft/trailblazer_client_servers/<serverKey>/` (multiplayer cache).
+- Share buttons in UI show `Share (N/A)` disabled.
+
+### Persistence Format
+Each path: `<uuid>.json` with schemaVersion=1 and fields mirroring PathData. An `index.json` tracks known files; orphans are auto-imported.
+
+### Configuration
+`config/trailblazer-client.json` fields:
+```
+{
+  "maxPointsPerPath": 5000,
+  "autosaveIntervalSeconds": 30,
+  "recordingOverlayEnabled": true,
+  "performanceProfile": "balanced",
+  "autoRequestShareSync": true
+}
+```
+
+### Commands
+Client only:
+- `/tblocal list` – list local paths.
+- `/tblocal export <uuid>` – export a path JSON to `trailblazer_export/`.
+
+### Recording Overlay
+Shows red text: `Recording Path: <name> (<points>)` when active (can disable in config).
+
+### Point Limit & Thinning
+When a path exceeds `maxPointsPerPath`, points are thinned (keep every Nth, always last). Prevents unbounded memory/file growth.
+
 Players will be able to share their paths with others more effectively if they are able to save their paths and share them, or simply keep them saved for personal use in the future whenever they want.
 
 ---
