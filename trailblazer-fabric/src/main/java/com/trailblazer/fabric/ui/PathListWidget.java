@@ -106,8 +106,9 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 if (origin == PathOrigin.SERVER_SHARED) {
                     pathManager.removeSharedPath(path.getPathId());
                 } else {
-                    pathManager.deletePath(path.getPathId());
-                    if (origin == PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(DeletePathPayload.ID)) {
+                    if (origin == PathOrigin.LOCAL) {
+                        pathManager.deletePath(path.getPathId());
+                    } else if (origin == PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(DeletePathPayload.ID)) {
                         ClientPlayNetworking.send(new DeletePathPayload(path.getPathId()));
                     }
                 }

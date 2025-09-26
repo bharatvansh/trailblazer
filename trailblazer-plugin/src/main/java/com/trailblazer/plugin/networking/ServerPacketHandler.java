@@ -21,18 +21,14 @@ import com.google.gson.Gson;
 import com.trailblazer.api.PathData;
 import com.trailblazer.api.Vector3d;
 import com.trailblazer.plugin.PathDataManager;
-import com.trailblazer.plugin.PathRecordingManager;
 import com.trailblazer.plugin.TrailblazerPlugin;
 import com.trailblazer.plugin.networking.payload.c2s.HandshakePayload;
-import com.trailblazer.plugin.networking.payload.c2s.ToggleRecordingPayload;
 import com.trailblazer.plugin.networking.payload.s2c.HideAllPathsPayload;
 import com.trailblazer.plugin.networking.payload.s2c.LivePathUpdatePayload;
 import com.trailblazer.plugin.networking.payload.s2c.PathDataSyncPayload;
+import com.trailblazer.plugin.networking.payload.s2c.PathDeletedPayload;
 import com.trailblazer.plugin.networking.payload.s2c.SharePathPayload;
 import com.trailblazer.plugin.networking.payload.s2c.StopLivePathPayload;
-
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 
 public class ServerPacketHandler implements Listener, PluginMessageListener {
 
@@ -42,12 +38,10 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private static final String UPDATE_METADATA_CHANNEL = "trailblazer:update_path_metadata";
     private static final String SHARE_PATH_WITH_PLAYERS_CHANNEL = "trailblazer:share_path_with_players";
 
-    private PathRecordingManager recordingManager;
     private final PathDataManager dataManager;
 
     public ServerPacketHandler(TrailblazerPlugin plugin) {
         this.plugin = plugin;
-        this.recordingManager = plugin.getPathRecordingManager();
         this.dataManager = plugin.getPathDataManager();
 
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
@@ -56,15 +50,11 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, LivePathUpdatePayload.CHANNEL);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, StopLivePathPayload.CHANNEL);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, SharePathPayload.CHANNEL_NAME);
-        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ToggleRecordingPayload.CHANNEL, this);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathDeletedPayload.CHANNEL_NAME);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_PATH_WITH_PLAYERS_CHANNEL, this);
-    }
-
-    public void setRecordingManager(PathRecordingManager recordingManager) {
-        this.recordingManager = recordingManager;
     }
 
     @Override
@@ -91,28 +81,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             return;
         }
 
-        if (channel.equalsIgnoreCase(ToggleRecordingPayload.CHANNEL)) {
-            plugin.getLogger().info("Received ToggleRecordingPayload from " + player.getName());
-            // ... (The toggle logic remains unchanged)
-            if (recordingManager.isRecording(player)) {
-                List<Vector3d> recordedPoints = recordingManager.stopRecording(player);
-                if (recordedPoints == null) return;
-                if (recordedPoints.size() < 2) {
-                    player.sendMessage(Component.text("Path too short to save.", NamedTextColor.YELLOW));
-                    return;
-                }
-                String pathName = "Path-" + (dataManager.loadPaths(player.getUniqueId()).size() + 1);
-                PathData newPath = new PathData(UUID.randomUUID(), pathName, player.getUniqueId(), player.getName(), System.currentTimeMillis(), player.getWorld().getName(), recordedPoints);
-                dataManager.savePath(newPath);
-                player.sendMessage(Component.text("Path recording stopped and saved as '", NamedTextColor.GREEN)
-                    .append(Component.text(pathName, NamedTextColor.AQUA))
-                    .append(Component.text("'.", NamedTextColor.GREEN)));
-            } else {
-                recordingManager.startRecording(player);
-                player.sendMessage(Component.text("Path recording started.", NamedTextColor.GREEN));
-            }
-        }
-
         if (channel.equalsIgnoreCase("trailblazer:delete_path")) {
             try {
                 UUID pathId;
@@ -129,13 +97,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 boolean owned = paths.stream().anyMatch(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(player.getUniqueId()));
                 if (owned) {
                     dataManager.deletePath(player.getUniqueId(), pathId);
-                    List<PathData> remaining = dataManager.loadPaths(player.getUniqueId());
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
-                        if (remaining.isEmpty()) {
-                            sendHideAllPaths(player); // clear client
-                        } else {
-                            sendAllPathData(player, remaining);
-                        }
+                        sendPathDeleted(player, pathId);
                     });
                 }
             } catch (Exception e) {
@@ -194,10 +157,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         Player player = event.getPlayer();
         moddedPlayers.remove(player.getUniqueId());
         // Clean up any active recording session to prevent "ghost" recordings.
-        if (recordingManager.isRecording(player)) {
-            recordingManager.cancelRecording(player);
-            TrailblazerPlugin.getPluginLogger().info("Cancelled active recording session for disconnected player: " + player.getName());
-        }
     }
 
     public boolean isModdedPlayer(Player player) {
@@ -237,6 +196,14 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         }
         StopLivePathPayload payload = new StopLivePathPayload();
         player.sendPluginMessage(plugin, StopLivePathPayload.CHANNEL, payload.toBytes());
+    }
+
+    public void sendPathDeleted(Player player, UUID pathId) {
+        if (!isModdedPlayer(player)) {
+            return;
+        }
+        PathDeletedPayload payload = new PathDeletedPayload(pathId);
+        player.sendPluginMessage(plugin, PathDeletedPayload.CHANNEL_NAME, payload.toBytes());
     }
 
     public void sendSharePath(Player targetPlayer, PathData pathData) {

@@ -16,6 +16,7 @@ public class PathDataManager {
 
     private final File dataFolder;
     private final Gson gson;
+    private int nextServerPathLetter = 0;
 
     public PathDataManager(TrailblazerPlugin plugin) {
         this.dataFolder = new File(plugin.getDataFolder(), "paths");
@@ -33,6 +34,12 @@ public class PathDataManager {
             TrailblazerPlugin.getPluginLogger().severe("Failed to save path " + path.getPathName());
             e.printStackTrace();
         }
+    }
+
+    public String getNextServerPathName() {
+        String letter = String.valueOf((char)('A' + nextServerPathLetter));
+        nextServerPathLetter++;
+        return "Path-" + letter;
     }
 
     public List<PathData> loadPaths(UUID playerUUID) {
@@ -62,21 +69,24 @@ public class PathDataManager {
             return;
         }
 
+        PathData pathData = null;
         try (FileReader reader = new FileReader(pathFile)) {
-            PathData pathData = gson.fromJson(reader, PathData.class);
-            if (pathData != null) {
-                if (pathData.getOwnerUUID().equals(playerUUID)) {
-                    if (!pathFile.delete()) {
-                        TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
-                    }
-                } else {
-                    pathData.getSharedWith().remove(playerUUID);
-                    savePath(pathData);
-                }
-            }
+            pathData = gson.fromJson(reader, PathData.class);
         } catch (IOException e) {
-            TrailblazerPlugin.getPluginLogger().severe("Failed to process path for deletion: " + pathId);
+            TrailblazerPlugin.getPluginLogger().severe("Failed to read path for deletion: " + pathId);
             e.printStackTrace();
+            return;
+        }
+
+        if (pathData != null) {
+            if (pathData.getOwnerUUID().equals(playerUUID)) {
+                if (!pathFile.delete()) {
+                    TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
+                }
+            } else {
+                pathData.getSharedWith().remove(playerUUID);
+                savePath(pathData);
+            }
         }
     }
 

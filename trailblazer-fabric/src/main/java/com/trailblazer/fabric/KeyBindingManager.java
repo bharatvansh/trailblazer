@@ -4,11 +4,8 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload;
-
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
@@ -49,7 +46,7 @@ public class KeyBindingManager {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleRecordingKey.wasPressed()) {
                 if (client.player != null) {
-                    LOGGER.info("Toggle recording key pressed. Sending packet to server.");
+                    // Prioritize local recording. The server is only for sharing saved paths.
                     boolean starting = !clientPathManager.isRecording();
                     if (starting) {
                         client.player.sendMessage(Text.literal("Starting path recording...").formatted(Formatting.YELLOW), true);
@@ -58,7 +55,6 @@ public class KeyBindingManager {
                         client.player.sendMessage(Text.literal("Stopping path recording...").formatted(Formatting.YELLOW), true);
                         clientPathManager.stopRecordingLocal();
                     }
-                    ClientPlayNetworking.send(new ToggleRecordingPayload());
                 }
             }
 

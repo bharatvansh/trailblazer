@@ -9,7 +9,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import com.trailblazer.plugin.commands.PathCommand;
 import com.trailblazer.plugin.commands.PathTabCompleter;
-import com.trailblazer.plugin.listeners.PlayerMoveListener;
 import com.trailblazer.plugin.networking.ServerPacketHandler;
 import com.trailblazer.plugin.rendering.PlayerRenderSettingsManager;
 
@@ -18,7 +17,6 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
     private static Logger pluginLogger;
     private static TrailblazerPlugin instance;
 
-    private PathRecordingManager pathRecordingManager;
     private PathDataManager pathDataManager;
     private PathRendererManager pathRendererManager;
     private ServerPacketHandler serverPacketHandler;
@@ -48,14 +46,11 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
         pathDataManager = new PathDataManager(this);
         playerRenderSettingsManager = new PlayerRenderSettingsManager();
         serverPacketHandler = new ServerPacketHandler(this);
-        pathRecordingManager = new PathRecordingManager(serverPacketHandler);
-        serverPacketHandler.setRecordingManager(pathRecordingManager);
         pathRendererManager = new PathRendererManager(this); // This will show an error, we fix it next
         pluginLogger.info("Managers initialized.");
     }
 
     private void registerEventListeners() {
-        getServer().getPluginManager().registerEvents(new PlayerMoveListener(pathRecordingManager), this);
         getServer().getPluginManager().registerEvents(this, this); // Register this class for the quit event
         pluginLogger.info("Event listeners registered.");
     }
@@ -71,10 +66,6 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
         getCommand("path").setExecutor(new PathCommand(this)); // This will also show an error
         getCommand("path").setTabCompleter(new PathTabCompleter(pathDataManager));
         pluginLogger.info("Commands registered.");
-    }
-
-    public PathRecordingManager getPathRecordingManager() {
-        return pathRecordingManager;
     }
 
     public PathDataManager getPathDataManager() {

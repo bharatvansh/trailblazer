@@ -1,8 +1,6 @@
 package com.trailblazer.plugin.commands;
 
 import com.trailblazer.api.PathData;
-import com.trailblazer.api.PathColors;
-import com.trailblazer.api.Vector3d;
 import com.trailblazer.plugin.TrailblazerPlugin;
 import com.trailblazer.plugin.rendering.PlayerRenderSettingsManager;
 import com.trailblazer.plugin.rendering.RenderMode;
@@ -67,72 +65,11 @@ public class PathCommand implements CommandExecutor {
             case "color":
                 handleColor(player, args);
                 break;
-            case "record":
-                handleRecord(player, args);
-                break;
             default:
                 sendHelpMessage(player);
                 break;
         }
         return true;
-    }
-
-    /**
-     * Handles server-side recording when a player has NO client mod installed.
-     * Usage: /path record start <name?>  OR  /path record stop
-     */
-    private void handleRecord(Player player, String[] args) {
-        boolean hasClientMod = plugin.getServerPacketHandler().isModdedPlayer(player);
-        if (hasClientMod) {
-            player.sendMessage(Component.text("You have the client mod installed. Use the keybind or in-game UI to record.", NamedTextColor.YELLOW));
-            return;
-        }
-        if (args.length < 2) {
-            player.sendMessage(Component.text("Usage: /path record <start|stop> [name]", NamedTextColor.RED));
-            return;
-        }
-        String action = args[1].toLowerCase();
-        var recordingManager = plugin.getPathRecordingManager();
-        switch (action) {
-            case "start": {
-                if (recordingManager.isRecording(player)) {
-                    player.sendMessage(Component.text("You are already recording a path.", NamedTextColor.RED));
-                    return;
-                }
-                String name = (args.length >= 3) ? args[2] : ("Path_" + System.currentTimeMillis());
-                boolean started = recordingManager.startRecording(player);
-                if (started) {
-                    player.sendMessage(Component.text("Recording started: " + name, NamedTextColor.GREEN));
-                    // Store a provisional path container in player metadata? We will build final PathData on stop using gathered points.
-                    // For simplicity just remember chosen name in a lightweight map in the PathRecordingManager? (Not implemented yet)
-                    // So embed name later by reusing provided name here; we pass it back via a temporary attribute.
-                    player.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "trailblazer_record_name"), org.bukkit.persistence.PersistentDataType.STRING, name);
-                } else {
-                    player.sendMessage(Component.text("Failed to start recording (already active).", NamedTextColor.RED));
-                }
-                break; }
-            case "stop": {
-                if (!recordingManager.isRecording(player)) {
-                    player.sendMessage(Component.text("You are not currently recording.", NamedTextColor.RED));
-                    return;
-                }
-                java.util.List<Vector3d> points = recordingManager.stopRecording(player);
-                if (points == null || points.isEmpty()) {
-                    player.sendMessage(Component.text("No points recorded, nothing saved.", NamedTextColor.YELLOW));
-                    return;
-                }
-                String storedName = player.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "trailblazer_record_name"), org.bukkit.persistence.PersistentDataType.STRING);
-                if (storedName == null) storedName = "Path_" + System.currentTimeMillis();
-                java.util.UUID pathId = java.util.UUID.randomUUID();
-                PathData data = new PathData(pathId, storedName, player.getUniqueId(), player.getName(), System.currentTimeMillis(), player.getWorld().getName(), points, PathColors.assignColorFor(pathId));
-                pathDataManager.savePath(data);
-                player.sendMessage(Component.text("Recording stopped. Saved path '" + storedName + "' with " + points.size() + " points.", NamedTextColor.GREEN));
-                // Immediately render it using fallback server renderer for non-modded players
-                plugin.getPathRendererManager().startRendering(player, data);
-                break; }
-            default:
-                player.sendMessage(Component.text("Usage: /path record <start|stop> [name]", NamedTextColor.RED));
-        }
     }
 
     private void handleColor(Player player, String[] args) {
@@ -321,7 +258,5 @@ public class PathCommand implements CommandExecutor {
         player.sendMessage(Component.text("/path share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path record start [name]", NamedTextColor.YELLOW).append(Component.text(" - Begin server-side recording (no client mod)", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path record stop", NamedTextColor.YELLOW).append(Component.text(" - Finish recording & save", NamedTextColor.WHITE)));
     }
 }

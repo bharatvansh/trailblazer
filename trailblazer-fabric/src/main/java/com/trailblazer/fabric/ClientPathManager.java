@@ -45,6 +45,7 @@ public class ClientPathManager {
     private PathPersistenceManager persistence; // injected
     private int maxPointsPerPath = 5000; // updated from config
     private UUID localPlayerUuid;
+    private int nextPathNumber = 1;
 
     public void attachPersistence(PathPersistenceManager persistence, int maxPointsPerPath) {
         this.persistence = persistence;
@@ -101,6 +102,17 @@ public class ClientPathManager {
         pathOrigins.remove(pathId);
     }
 
+    public void removeServerPath(UUID pathId) {
+        PathOrigin origin = pathOrigins.get(pathId);
+        if (origin == PathOrigin.SERVER_OWNED) {
+            myPaths.remove(pathId);
+        } else if (origin == PathOrigin.SERVER_SHARED) {
+            sharedPaths.remove(pathId);
+        }
+        visiblePaths.remove(pathId);
+        pathOrigins.remove(pathId);
+    }
+
     public boolean isPathVisible(UUID pathId) {
         return visiblePaths.contains(pathId);
     }
@@ -149,7 +161,8 @@ public class ClientPathManager {
         if (recording) return;
         recording = true;
         UUID id = UUID.randomUUID();
-        localRecording = new PathData(id, "Path " + id.toString().substring(0, 8), UUID.randomUUID(), "Player", System.currentTimeMillis(), "minecraft:overworld", new ArrayList<>());
+        localRecording = new PathData(id, "Path-" + nextPathNumber, UUID.randomUUID(), "Player", System.currentTimeMillis(), "minecraft:overworld", new ArrayList<>());
+        nextPathNumber++;
         addMyPath(localRecording);
         setPathVisible(localRecording.getPathId());
         lastCapturedPoint = null;
