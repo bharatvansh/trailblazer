@@ -47,7 +47,9 @@ public class PathRecordingManager {
         // Record the very first point immediately.
         recordPlayerLocation(player, player.getLocation());
         // Send the initial point to the client to start live rendering.
-        packetHandler.sendLivePathUpdate(player, points);
+        if (packetHandler.isModdedPlayer(player)) {
+            packetHandler.sendLivePathUpdate(player, points);
+        }
         return true;
     }
 
@@ -114,7 +116,9 @@ public class PathRecordingManager {
         if (distanceSquared >= MIN_DISTANCE_SQUARED) {
             points.add(newPoint);
             // Send the updated points to the client for live rendering.
-            packetHandler.sendLivePathUpdate(player, points);
+            if (packetHandler.isModdedPlayer(player)) {
+                packetHandler.sendLivePathUpdate(player, points);
+            }
         }
     }
 }

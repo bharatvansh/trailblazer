@@ -4,7 +4,6 @@ import com.trailblazer.api.PathData;
 import com.trailblazer.fabric.ClientPathManager;
 import com.trailblazer.fabric.ClientPathManager.PathOrigin;
 import com.trailblazer.fabric.ServerIntegrationBridge;
-import com.trailblazer.fabric.networking.payload.c2s.SharePathPayload;
 import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -20,7 +19,7 @@ import java.util.List;
 public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> {
 
     public PathListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
-        super(client, width, height, top, itemHeight);
+        super(client, width, height, top, Math.max(itemHeight, 38));
     }
 
     @Override
@@ -68,13 +67,10 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             boolean serverAvailable = ServerIntegrationBridge.SERVER_INTEGRATION != null && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
             if (origin == PathOrigin.LOCAL) {
                 this.shareButton.active = serverAvailable;
-                this.shareButton.setMessage(Text.of("Share (Server)"));
             } else if (origin == PathOrigin.SERVER_OWNED) {
                 this.shareButton.active = serverAvailable;
-                this.shareButton.setMessage(Text.of("Share"));
             } else {
                 this.shareButton.active = false;
-                this.shareButton.setMessage(Text.of("Share (N/A)"));
             }
 
             this.editButton = ButtonWidget.builder(Text.of("Edit"), button -> {
@@ -122,7 +118,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             int baseX = x + 5;
-            int textY = y + 5;
+            int textY = y + 4; // slightly less top padding to compact the entry vertically
             if (origin != null) {
                 int badgeColor = originBadgeColor();
                 int squareX = baseX;
@@ -134,12 +130,29 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 }
                 baseX += 12;
             }
-            context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, path.getPathName(), baseX, textY, 0xFFFFFF);
-            if (!isMyPath) {
-                int ownerX = baseX + MinecraftClient.getInstance().textRenderer.getWidth(path.getPathName());
-                context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, " (by " + path.getOwnerName() + ")", ownerX, textY, 0xAAAAAA);
+            // Calculate available width for text (subtract button area width)
+            int buttonAreaWidth = isMyPath ? 340 : 170; // 4 buttons vs 2 buttons (85px each + spacing)
+            int availableTextWidth = entryWidth - (baseX - x) - buttonAreaWidth - 10; // 10px padding
+            
+            // Trim path name if it's too long
+            var textRenderer = MinecraftClient.getInstance().textRenderer;
+            String displayName = path.getPathName();
+            if (textRenderer.getWidth(displayName) > availableTextWidth) {
+                displayName = textRenderer.trimToWidth(displayName, availableTextWidth - textRenderer.getWidth("...")) + "...";
             }
-
+            
+            context.drawTextWithShadow(textRenderer, displayName, baseX, textY, 0xFFFFFF);
+            if (!isMyPath) {
+                String ownerText = " (by " + path.getOwnerName() + ")";
+                int ownerX = baseX + textRenderer.getWidth(displayName);
+                // Make sure owner text doesn't overflow either
+                int remainingWidth = availableTextWidth - textRenderer.getWidth(displayName);
+                if (textRenderer.getWidth(ownerText) > remainingWidth) {
+                    ownerText = textRenderer.trimToWidth(ownerText, remainingWidth - textRenderer.getWidth("...")) + "...";
+                }
+                context.drawTextWithShadow(textRenderer, ownerText, ownerX, textY, 0xAAAAAA);
+            }
+            
             int buttonX = x + entryWidth - 80;
             int buttonY = y;
             int buttonWidth = 75;
@@ -173,6 +186,15 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             deleteButton.setWidth(buttonWidth);
             deleteButton.setHeight(buttonHeight);
             deleteButton.render(context, mouseX, mouseY, tickDelta);
+
+            // Coordinates row below buttons (20px button height + padding)
+            int coordY = y + 22; // below buttons
+            int contentRightX = x + entryWidth - 10; // align with list padding
+            drawCoordinates(context, baseX, contentRightX, coordY, textRenderer);
+
+            // Draw separator line at the bottom of the entry
+            int separatorY = y + entryHeight - 1;
+            context.fill(x, separatorY, x + entryWidth, separatorY + 1, 0xFF444444); // Dark gray separator
 
             // Reset confirm state if timeout elapsed (and user didn't click second time)
             if (awaitingDeleteConfirm && System.currentTimeMillis() - deleteConfirmStartMs > CONFIRM_TIMEOUT_MS) {
@@ -216,6 +238,45 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 case LOCAL -> 0xFF55FF55; // Green
                 case SERVER_OWNED, SERVER_SHARED -> 0xFF55AAFF; // Blue
             };
+        }
+
+        private void drawCoordinates(DrawContext context, int baseX, int contentRightX, int yCoord, net.minecraft.client.font.TextRenderer tr) {
+            if (path.getPoints().isEmpty()) return;
+            var startPoint = path.getPoints().get(0);
+            var endPoint = path.getPoints().get(path.getPoints().size() - 1);
+            String startText = String.format("Start: %.0f, %.0f, %.0f", startPoint.getX(), startPoint.getY(), startPoint.getZ());
+            String endText = String.format("End: %.0f, %.0f, %.0f", endPoint.getX(), endPoint.getY(), endPoint.getZ());
+            if (contentRightX <= baseX) return;
+            int maxWidth = contentRightX - baseX;
+            if (maxWidth <= 70) return;
+
+            String arrow = "→";
+            int arrowWidth = tr.getWidth(arrow);
+            int endWidth = tr.getWidth(endText);
+            int availableForStart = maxWidth - endWidth - arrowWidth - 16; // minimum spacing between segments
+            if (availableForStart < 40) return;
+
+            if (tr.getWidth(startText) > availableForStart) {
+                startText = tr.trimToWidth(startText, Math.max(availableForStart - tr.getWidth("..."), 0)) + "...";
+            }
+
+            int startWidth = tr.getWidth(startText);
+            int startX = baseX;
+            int endX = contentRightX - endWidth;
+
+            // center the arrow when possible while preventing overlap with start/end text
+            int arrowX = baseX + (maxWidth - arrowWidth) / 2;
+            int minArrowX = startX + startWidth + 4;
+            int maxArrowX = endX - arrowWidth - 4;
+            if (arrowX < minArrowX) {
+                arrowX = minArrowX;
+            } else if (arrowX > maxArrowX) {
+                arrowX = maxArrowX;
+            }
+
+            context.drawTextWithShadow(tr, startText, startX, yCoord, 0xBBBBBB);
+            context.drawTextWithShadow(tr, arrow, arrowX, yCoord, 0x888888);
+            context.drawTextWithShadow(tr, endText, endX, yCoord, 0xBBBBBB);
         }
     }
 }

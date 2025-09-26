@@ -233,12 +233,13 @@ public class PathCommand implements CommandExecutor {
                         plugin.getServerPacketHandler().sendSharePath(targetPlayer, path);
                         targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
                     } else {
-                        pathDataManager.savePath(path);
+                        // This is the fallback for players without the client mod.
                         plugin.getPathRendererManager().startRendering(targetPlayer, path);
                         targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you.", NamedTextColor.AQUA));
                         targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + path.getPathName() + "' to see it again.", NamedTextColor.GRAY));
                     }
                 }
+                // The path data is updated with the new list of shared players.
                 pathDataManager.savePath(path);
                 player.sendMessage(Component.text("Path '" + pathName + "' shared with " + targetPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) + ".", NamedTextColor.GREEN));
             } else {
