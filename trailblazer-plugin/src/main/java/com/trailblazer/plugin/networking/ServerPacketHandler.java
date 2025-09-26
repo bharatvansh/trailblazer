@@ -2,6 +2,7 @@ package com.trailblazer.plugin.networking;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -39,6 +40,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private final Gson gson = new Gson();
     private final Set<UUID> moddedPlayers = new HashSet<>();
     private static final String UPDATE_METADATA_CHANNEL = "trailblazer:update_path_metadata";
+    private static final String SHARE_PATH_WITH_PLAYERS_CHANNEL = "trailblazer:share_path_with_players";
 
     private PathRecordingManager recordingManager;
     private final PathDataManager dataManager;
@@ -58,6 +60,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_PATH_WITH_PLAYERS_CHANNEL, this);
     }
 
     public void setRecordingManager(PathRecordingManager recordingManager) {
@@ -100,7 +103,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 }
                 String pathName = "Path-" + (dataManager.loadPaths(player.getUniqueId()).size() + 1);
                 PathData newPath = new PathData(UUID.randomUUID(), pathName, player.getUniqueId(), player.getName(), System.currentTimeMillis(), player.getWorld().getName(), recordedPoints);
-                dataManager.savePath(player.getUniqueId(), newPath);
+                dataManager.savePath(newPath);
                 player.sendMessage(Component.text("Path recording stopped and saved as '", NamedTextColor.GREEN)
                     .append(Component.text(pathName, NamedTextColor.AQUA))
                     .append(Component.text("'.", NamedTextColor.GREEN)));
@@ -143,6 +146,11 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
         if (channel.equalsIgnoreCase(UPDATE_METADATA_CHANNEL)) {
             handleMetadataUpdate(player, message);
+            return;
+        }
+
+        if (channel.equalsIgnoreCase(SHARE_PATH_WITH_PLAYERS_CHANNEL)) {
+            handleSharePathWithPlayers(player, message);
             return;
         }
     }
@@ -236,6 +244,35 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         // This method is now only responsible for creating and sending the packet to modded clients.
         SharePathPayload payload = new SharePathPayload(pathData);
         targetPlayer.sendPluginMessage(plugin, SharePathPayload.CHANNEL_NAME, payload.toBytes());
+    }
+
+    private void handleSharePathWithPlayers(Player sender, byte[] message) {
+        try {
+            ByteBuffer buffer = ByteBuffer.wrap(message);
+            UUID pathId = new UUID(buffer.getLong(), buffer.getLong());
+            int playerCount = readVarInt(buffer);
+            List<UUID> playerIds = new ArrayList<>();
+            for (int i = 0; i < playerCount; i++) {
+                playerIds.add(new UUID(buffer.getLong(), buffer.getLong()));
+            }
+
+            List<PathData> paths = dataManager.loadPaths(sender.getUniqueId());
+            paths.stream()
+                .filter(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(sender.getUniqueId()))
+                .findFirst()
+                .ifPresent(path -> {
+                    path.getSharedWith().addAll(playerIds);
+                    dataManager.savePath(path);
+                    for (UUID targetPlayerId : playerIds) {
+                        Player targetPlayer = plugin.getServer().getPlayer(targetPlayerId);
+                        if (targetPlayer != null && targetPlayer.isOnline()) {
+                            sendSharePath(targetPlayer, path);
+                        }
+                    }
+                });
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to process share path with players payload from " + sender.getName() + ": " + e.getMessage());
+        }
     }
 
     private void handleMetadataUpdate(Player player, byte[] message) {

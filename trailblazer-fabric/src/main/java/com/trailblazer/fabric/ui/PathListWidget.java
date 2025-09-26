@@ -62,11 +62,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
 
 
             this.shareButton = ButtonWidget.builder(Text.of("Share"), button -> {
-                if (ServerIntegrationBridge.SERVER_INTEGRATION != null && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported()) {
-                    if (origin == PathOrigin.LOCAL || origin == PathOrigin.SERVER_OWNED) {
-                        ClientPlayNetworking.send(new SharePathPayload(path.getPathId()));
-                    }
-                }
+                MinecraftClient.getInstance().setScreen(new PlayerSelectionScreen(path, MinecraftClient.getInstance().currentScreen));
             }).build();
 
             boolean serverAvailable = ServerIntegrationBridge.SERVER_INTEGRATION != null && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
@@ -127,10 +123,15 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             int baseX = x + 5;
             int textY = y + 5;
             if (origin != null) {
-                String badge = originBadge();
                 int badgeColor = originBadgeColor();
-                context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, badge, baseX, textY, badgeColor);
-                baseX += MinecraftClient.getInstance().textRenderer.getWidth(badge) + 6;
+                int squareX = baseX;
+                int squareY = textY;
+                context.fill(squareX, squareY, squareX + 8, squareY + 8, badgeColor);
+
+                if (mouseX >= squareX && mouseX <= squareX + 8 && mouseY >= squareY && mouseY <= squareY + 8) {
+                    context.drawTooltip(MinecraftClient.getInstance().textRenderer, getOriginTooltipText(), mouseX, mouseY);
+                }
+                baseX += 12;
             }
             context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, path.getPathName(), baseX, textY, 0xFFFFFF);
             if (!isMyPath) {
@@ -202,19 +203,17 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             return List.of(toggleButton, deleteButton);
         }
 
-        private String originBadge() {
+        private Text getOriginTooltipText() {
             return switch (origin) {
-                case LOCAL -> "[LOCAL]";
-                case SERVER_OWNED -> "[SERVER]";
-                case SERVER_SHARED -> "[SHARED]";
+                case LOCAL -> Text.of("Stored in Client");
+                case SERVER_OWNED, SERVER_SHARED -> Text.of("Stored in Server");
             };
         }
 
         private int originBadgeColor() {
             return switch (origin) {
-                case LOCAL -> 0x55FF55;
-                case SERVER_OWNED -> 0x55AAFF;
-                case SERVER_SHARED -> 0xFFAA00;
+                case LOCAL -> 0xFF55FF55; // Green
+                case SERVER_OWNED, SERVER_SHARED -> 0xFF55AAFF; // Blue
             };
         }
     }

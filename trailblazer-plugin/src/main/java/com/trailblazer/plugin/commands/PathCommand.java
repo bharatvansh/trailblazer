@@ -14,8 +14,11 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class PathCommand implements CommandExecutor {
 
@@ -122,7 +125,7 @@ public class PathCommand implements CommandExecutor {
                 if (storedName == null) storedName = "Path_" + System.currentTimeMillis();
                 java.util.UUID pathId = java.util.UUID.randomUUID();
                 PathData data = new PathData(pathId, storedName, player.getUniqueId(), player.getName(), System.currentTimeMillis(), player.getWorld().getName(), points, PathColors.assignColorFor(pathId));
-                pathDataManager.savePath(player.getUniqueId(), data);
+                pathDataManager.savePath(data);
                 player.sendMessage(Component.text("Recording stopped. Saved path '" + storedName + "' with " + points.size() + " points.", NamedTextColor.GREEN));
                 // Immediately render it using fallback server renderer for non-modded players
                 plugin.getPathRendererManager().startRendering(player, data);
@@ -153,7 +156,7 @@ public class PathCommand implements CommandExecutor {
         }
         path.setColorArgb(parsed.get());
         // Persist by rewriting file (reuse rename logic pattern)
-        pathDataManager.savePath(player.getUniqueId(), path);
+        pathDataManager.savePath(path);
         player.sendMessage(Component.text("Color for path '" + path.getPathName() + "' set to " + com.trailblazer.api.PathColors.nameOrHex(path.getColorArgb()), NamedTextColor.GREEN));
         // If currently rendering on server fallback, re-start to apply new color (will matter after server side color usage implemented)
         plugin.getPathRendererManager().startRendering(player, path);
@@ -253,21 +256,20 @@ public class PathCommand implements CommandExecutor {
 
     private void handleShare(Player player, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(Component.text("Usage: /path share <path-name> <player-name>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /path share <path-name> <player1,player2,...>", NamedTextColor.RED));
             return;
         }
 
         String pathName = args[1];
-        String targetPlayerName = args[2];
+        List<String> targetPlayerNames = Arrays.asList(args[2].split(","));
 
-        Player targetPlayer = plugin.getServer().getPlayer(targetPlayerName);
-        if (targetPlayer == null || !targetPlayer.isOnline()) {
-            player.sendMessage(Component.text("Player '" + targetPlayerName + "' not found or is not online.", NamedTextColor.RED));
-            return;
-        }
+        List<Player> targetPlayers = targetPlayerNames.stream()
+                .map(name -> plugin.getServer().getPlayer(name.trim()))
+                .filter(p -> p != null && p.isOnline())
+                .collect(Collectors.toList());
 
-        if (targetPlayer.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage(Component.text("You cannot share a path with yourself.", NamedTextColor.RED));
+        if (targetPlayers.isEmpty()) {
+            player.sendMessage(Component.text("No valid online players found to share with.", NamedTextColor.RED));
             return;
         }
 
@@ -278,25 +280,30 @@ public class PathCommand implements CommandExecutor {
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
             if (path.getOwnerUUID().equals(player.getUniqueId())) {
-                boolean isTargetModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
+                List<UUID> sharedWithList = path.getSharedWith();
+                for (Player targetPlayer : targetPlayers) {
+                    if (targetPlayer.getUniqueId().equals(player.getUniqueId())) {
+                        player.sendMessage(Component.text("You cannot share a path with yourself.", NamedTextColor.YELLOW));
+                        continue;
+                    }
+                    if (!sharedWithList.contains(targetPlayer.getUniqueId())) {
+                        sharedWithList.add(targetPlayer.getUniqueId());
+                    }
 
-                if (isTargetModded) {
-                    // The target has the client mod, send the custom packet.
-                    plugin.getServerPacketHandler().sendSharePath(targetPlayer, path);
-                    targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
-                } else {
-                    // The target does not have the mod, handle it entirely on the server.
-                    // 1. Save the path to the target player's data file so they can manage it.
-                    pathDataManager.savePath(targetPlayer.getUniqueId(), path);
-                    // 2. Start rendering the path for them using the server-side fallback renderer.
-                    plugin.getPathRendererManager().startRendering(targetPlayer, path);
-                    // 3. Send them a helpful message explaining how to manage the path.
-                    targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you.", NamedTextColor.AQUA));
-                    targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + path.getPathName() + "' to see it again.", NamedTextColor.GRAY));
+                    boolean isTargetModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
+
+                    if (isTargetModded) {
+                        plugin.getServerPacketHandler().sendSharePath(targetPlayer, path);
+                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
+                    } else {
+                        pathDataManager.savePath(path);
+                        plugin.getPathRendererManager().startRendering(targetPlayer, path);
+                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you.", NamedTextColor.AQUA));
+                        targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + path.getPathName() + "' to see it again.", NamedTextColor.GRAY));
+                    }
                 }
-
-                // Notify the sender that the share was successful.
-                player.sendMessage(Component.text("Path '" + pathName + "' shared with " + targetPlayerName + ".", NamedTextColor.GREEN));
+                pathDataManager.savePath(path);
+                player.sendMessage(Component.text("Path '" + pathName + "' shared with " + targetPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) + ".", NamedTextColor.GREEN));
             } else {
                 player.sendMessage(Component.text("You can only share paths that you own.", NamedTextColor.RED));
             }
@@ -311,7 +318,7 @@ public class PathCommand implements CommandExecutor {
         player.sendMessage(Component.text("/path hide", NamedTextColor.YELLOW).append(Component.text(" - Hide the current path", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path delete <name>", NamedTextColor.YELLOW).append(Component.text(" - Delete a path you own", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path you own", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path share <path> <player>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with another player", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/path share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/path record start [name]", NamedTextColor.YELLOW).append(Component.text(" - Begin server-side recording (no client mod)", NamedTextColor.WHITE)));

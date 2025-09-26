@@ -3,6 +3,7 @@ package com.trailblazer.fabric.networking;
 import com.trailblazer.fabric.networking.payload.c2s.DeletePathPayload;
 import com.trailblazer.fabric.networking.payload.c2s.HandshakePayload;
 import com.trailblazer.fabric.networking.payload.c2s.SharePathPayload;
+import com.trailblazer.fabric.networking.payload.c2s.SharePathWithPlayersPayload;
 import com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload;
 import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
 import com.trailblazer.fabric.networking.payload.s2c.HideAllPathsPayload;
@@ -31,6 +32,7 @@ public class TrailblazerNetworking {
         PayloadTypeRegistry.playC2S().register(DeletePathPayload.ID, DeletePathPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(HandshakePayload.ID, HandshakePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SharePathPayload.ID, SharePathPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(SharePathWithPlayersPayload.ID, SharePathWithPlayersPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(UpdatePathMetadataPayload.ID, UpdatePathMetadataPayload.CODEC);
     }
 }

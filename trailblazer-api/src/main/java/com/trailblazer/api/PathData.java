@@ -1,6 +1,7 @@
 package com.trailblazer.api;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -11,7 +12,7 @@ import java.util.UUID;
  * or saved to a file. It is part of the shared API module.
  */
 public class PathData implements Serializable {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
     private final UUID pathId;
     private String pathName; // Can be renamed
@@ -20,6 +21,7 @@ public class PathData implements Serializable {
     private final long creationTimestamp;
     private final String dimension;
     private final List<Vector3d> points;
+    private final List<UUID> sharedWith;
     // Stored as 0xAARRGGBB. 0 or missing implies uninitialized -> lazily assigned.
     private int colorArgb; 
 
@@ -39,6 +41,7 @@ public class PathData implements Serializable {
         this.creationTimestamp = creationTimestamp;
         this.dimension = dimension;
         this.points = points;
+        this.sharedWith = new ArrayList<>();
         this.colorArgb = 0; // Will be lazily assigned when accessed if still zero
     }
 
@@ -46,6 +49,12 @@ public class PathData implements Serializable {
     public PathData(UUID pathId, String pathName, UUID ownerUUID, String ownerName, long creationTimestamp, String dimension, List<Vector3d> points, int colorArgb) {
         this(pathId, pathName, ownerUUID, ownerName, creationTimestamp, dimension, points);
         this.colorArgb = (colorArgb == 0 ? PathColors.assignColorFor(pathId) : colorArgb);
+    }
+
+    /** New constructor including sharedWith list */
+    public PathData(UUID pathId, String pathName, UUID ownerUUID, String ownerName, long creationTimestamp, String dimension, List<Vector3d> points, int colorArgb, List<UUID> sharedWith) {
+        this(pathId, pathName, ownerUUID, ownerName, creationTimestamp, dimension, points, colorArgb);
+        this.sharedWith.addAll(sharedWith);
     }
 
     // Getters
@@ -75,6 +84,10 @@ public class PathData implements Serializable {
 
     public List<Vector3d> getPoints() {
         return points;
+    }
+
+    public List<UUID> getSharedWith() {
+        return sharedWith;
     }
 
     /** Returns the ARGB color for this path, assigning one if missing (migration support). */
