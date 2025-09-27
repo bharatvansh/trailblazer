@@ -98,6 +98,14 @@ public class MainMenuScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // DEBUG: remove any in-game dim entirely to isolate list tint sources
+        if (this.client == null || this.client.world == null) {
+            super.renderBackground(context, mouseX, mouseY, delta);
+        }
+    }
+
+    @Override
     public void tick() {
         super.tick();
         int currentCount = (showingMyPaths ? pathManager.getMyPaths().size() : pathManager.getSharedPaths().size());
@@ -116,6 +124,8 @@ public class MainMenuScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
+        // Full-screen dim: darker (~15% alpha). Rows (31-35%) remain clearly on top.
+        context.fill(0, 0, this.width, this.height, 0x26000000);
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 15, 0xFFFFFF);
     }

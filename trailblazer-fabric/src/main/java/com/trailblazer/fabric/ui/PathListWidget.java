@@ -21,6 +21,19 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
     private final int containerTop;
     private final int containerHeight;
 
+    // Smooth scrolling state (inertial)
+    private double targetScrollAmount = -1.0; // lazily initialized to current scroll
+    private double scrollVelocity = 0.0;      // pixels per second
+    private static final double FRICTION_PER_SEC = 1.2; // lower = longer glide
+    private static final double MIN_VELOCITY = 0.05;    // snap to stop under this speed
+    private static final double MAX_VELOCITY = 500.0;   // clamp spikes from large wheel deltas
+
+    // Concept preset (darker): rows as subtle cards, horizontal separators only
+    private static final int CONTAINER_BG      = 0x2E000000; // ~18% alpha (below row opacity)
+    private static final int ROW_BG            = 0x50000000; // ~31% alpha
+    private static final int ROW_BG_HOVER      = 0x5A000000; // ~35% alpha on hover
+    private static final int SEPARATOR         = 0x40FFFFFF; // ~25% alpha thin light separators
+
     public PathListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
         super(client, width, height, top, Math.max(itemHeight, 36));
         this.containerTop = top;
@@ -70,28 +83,114 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         }
     }
 
-    // Note: The built-in background is suppressed via a mixin into EntryListWidget#drawMenuListBackground.
+    // Ensure the vanilla background is suppressed by overriding the hook used by EntryListWidget
+    @Override
+    protected void drawMenuListBackground(DrawContext context) {
+        // no-op: prevent the vanilla tinted band from rendering behind rows
+        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: drawMenuListBackground invoked (suppressed)");
+    }
+
+    // Some versions use a separate method when drawing over the world. Declare it here so we suppress it if present.
+    // Intentionally no @Override to avoid compilation errors if the method doesn't exist in this mapping.
+    protected void drawInWorldMenuListBackground(DrawContext context) {
+        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: drawInWorldMenuListBackground invoked (suppressed)");
+        // no-op
+    }
 
     @Override
     protected void renderList(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Container-wide background, final color: semi-transparent black with ~30% reduced opacity
+        // Container-wide background: very subtle opacity (keep the world visible)
         int left = 0;
         int right = this.width;
         int top = this.getY();
         int bottom = this.getY() + this.getHeight();
-        context.fill(left, top, right, bottom, 0x0B000000);
+        context.fill(left, top, right, bottom, CONTAINER_BG);
+        // Top/bottom separators to frame the list
+        context.fill(left, top, right, top + 1, SEPARATOR);
+        context.fill(left, bottom - 1, right, bottom, SEPARATOR);
+
+        // Initialize target scroll lazily so we don't jump on first frame
+        if (targetScrollAmount < 0.0) {
+            targetScrollAmount = this.getScrollAmount();
+        }
+
+        // Inertial update: integrate velocity and apply friction
+        double dt = Math.max(0.0, Math.min(delta, 1.0));
+        if (scrollVelocity != 0.0) {
+            targetScrollAmount += scrollVelocity * dt;
+            // Friction as exponential decay per second
+            double decay = Math.exp(-FRICTION_PER_SEC * dt);
+            scrollVelocity *= decay;
+            // Stronger ease-out near rest to avoid any hard stop feel
+            if (Math.abs(scrollVelocity) < 80.0) scrollVelocity *= 0.80;
+            if (Math.abs(scrollVelocity) < MIN_VELOCITY) scrollVelocity = 0.0;
+        }
+
+        // Clamp target within bounds and prevent continuing velocity into edges
+        double max = this.getMaxScroll();
+        if (targetScrollAmount <= 0.0) {
+            targetScrollAmount = 0.0;
+            if (scrollVelocity < 0) scrollVelocity *= -0.2; // soft rebound instead of hard stop
+        } else if (targetScrollAmount >= max) {
+            targetScrollAmount = max;
+            if (scrollVelocity > 0) scrollVelocity *= -0.2; // soft rebound instead of hard stop
+        }
+        this.setScrollAmount(targetScrollAmount);
+        // Clip list rendering so entries never overlap the border pixels
+        int contentTop = top + 1;
+        int contentBottom = bottom - 1;
+        context.enableScissor(left, contentTop, right, contentBottom);
         super.renderList(context, mouseX, mouseY, delta);
+        context.disableScissor();
+    }
+
+    // Mapping-safe mouse scroll overrides: provide both common signatures without @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        if (!this.isMouseOver(mouseX, mouseY)) return false;
+        if (targetScrollAmount < 0.0) targetScrollAmount = this.getScrollAmount();
+        // Add an inertial impulse rather than jumping the scroll (tuned for smoothness)
+        double base = Math.max(this.itemHeight * 0.35, 8.0);
+        // Limit per-event acceleration to avoid spikes from high-resolution wheels
+        double deltaV = -amount * base * 1.2; // very gentle acceleration
+        if (deltaV > 180.0) deltaV = 180.0;
+        if (deltaV < -180.0) deltaV = -180.0;
+        scrollVelocity += deltaV; // very gentle acceleration
+        // Clamp max speed to avoid edgy jumps
+        if (scrollVelocity > MAX_VELOCITY) scrollVelocity = MAX_VELOCITY;
+        if (scrollVelocity < -MAX_VELOCITY) scrollVelocity = -MAX_VELOCITY;
+        return true;
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        // Delegate to the single-amount variant if present in this mapping
+        return mouseScrolled(mouseX, mouseY, verticalAmount);
+    }
+
+    @Override
+    protected int getRowTop(int index) {
+        // Vanilla adds a 4px inset; reduce to 1px so rows sit just beneath the border
+        return super.getRowTop(index) - 3;
+    }
+
+    @Override
+    protected int getRowBottom(int index) {
+        return super.getRowBottom(index) - 3;
     }
 
     @Override
     protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
-        // Restore default decorations (scrollbar, selection highlight)
+        // Restore scrollbar and default decorations (selection highlight remains disabled by our override)
         super.renderDecorations(context, mouseX, mouseY);
     }
 
     @Override
     protected void drawHeaderAndFooterSeparators(DrawContext context) {
-        super.drawHeaderAndFooterSeparators(context);
+        // DEBUG: disable separators to avoid extra dark lines at top/bottom of the list area
+    }
+
+    @Override
+    protected void drawSelectionHighlight(DrawContext context, int a, int b, int c, int d, int e) {
+        // DEBUG: disable selection highlight to ensure no hidden tint contributes to perceived darkness
     }
 
     @Override
@@ -191,17 +290,16 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             int fullRowBottom = rowTop + PathListWidget.this.itemHeight;
             int rowBottom = Math.max(rowContentBottom, fullRowBottom);
 
-            // Row background: neutral semi-transparent dark to keep focus on content
-            int bgColor = 0x33000000;
+            // Row background as a subtle card
+            int bgColor = ROW_BG;
+            if (hovered) bgColor = ROW_BG_HOVER;
             context.fill(bgLeft, rowTop, bgRight, rowBottom, bgColor);
-            // Draw top border per row to keep crisp separators, and bottom border for the final row
-            context.fill(bgLeft, rowTop, bgRight, rowTop + 1, 0xFF000000);
+
+            // Horizontal separators only (no vertical borders)
+            context.fill(bgLeft, rowTop, bgRight, rowTop + 1, SEPARATOR); // top of row
             if (index == PathListWidget.this.getEntryCount() - 1) {
-                context.fill(bgLeft, rowBottom - 1, bgRight, rowBottom, 0xFF000000);
+                context.fill(bgLeft, rowBottom - 1, bgRight, rowBottom, SEPARATOR); // bottom for last row
             }
-            // Draw left and right borders
-            context.fill(bgLeft, rowTop, bgLeft + 1, rowBottom, 0xFF000000);
-            context.fill(bgRight - 1, rowTop, bgRight, rowBottom, 0xFF000000);
 
             // Layout metrics
             final int topPadding = 4; // desired visual gap
