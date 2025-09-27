@@ -93,6 +93,13 @@ public class PathPersistenceManager {
         } catch (IOException e) {
             LOGGER.error("Error scanning path directory", e);
         }
+        // After loading all local path files, make sure the client manager updates
+        // its auto-name counter so future auto-named paths won't collide with loaded ones.
+        try {
+            pathManager.recalculateNextPathNumber();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to recalculate next path number after loading paths", e);
+        }
     }
 
     private void loadSingle(UUID pathId, Path file) {

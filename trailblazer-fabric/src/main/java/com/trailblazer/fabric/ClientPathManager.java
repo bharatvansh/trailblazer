@@ -341,7 +341,12 @@ public class ClientPathManager {
         return PathOrigin.SERVER_SHARED;
     }
 
-    private void recalculateNextPathNumber() {
+    /**
+     * Recalculate the next numeric suffix to use for auto-named "Path-N" paths.
+     * This inspects currently-loaded local paths and sets the internal counter so
+     * newly-created paths won't collide with existing ones.
+     */
+    public void recalculateNextPathNumber() {
         int maxNum = 0;
         for (PathData path : myPaths.values()) {
             if (path.getPathName().startsWith("Path-")) {
