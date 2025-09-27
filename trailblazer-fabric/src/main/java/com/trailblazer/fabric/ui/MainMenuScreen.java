@@ -49,6 +49,10 @@ public class MainMenuScreen extends Screen {
             updatePathList();
         }).dimensions(this.width / 2 + 5, tabY, tabWidth, tabHeight).build();
 
+        boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION != null && 
+                                 com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
+        sharedWithMeTab.active = serverAvailable;
+
         this.addDrawableChild(myPathsTab);
         this.addDrawableChild(sharedWithMeTab);
 
@@ -118,6 +122,19 @@ public class MainMenuScreen extends Screen {
             if (!recordButton.getMessage().getString().equals(desired)) {
                 recordButton.setMessage(Text.of(desired));
             }
+        }
+        
+        // Check server support and switch to My Paths if Shared With Me is selected but server not available
+        boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION != null && 
+                                 com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
+        if (!showingMyPaths && !serverAvailable) {
+            showingMyPaths = true;
+            updatePathList();
+        }
+        
+        // Update tab active state
+        if (sharedWithMeTab != null) {
+            sharedWithMeTab.active = serverAvailable;
         }
     }
 
