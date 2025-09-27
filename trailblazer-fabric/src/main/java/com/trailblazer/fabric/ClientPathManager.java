@@ -50,6 +50,7 @@ public class ClientPathManager {
     public void attachPersistence(PathPersistenceManager persistence, int maxPointsPerPath) {
         this.persistence = persistence;
         this.maxPointsPerPath = maxPointsPerPath;
+        recalculateNextPathNumber();
     }
 
     public void addMyPath(PathData path) {
@@ -94,6 +95,7 @@ public class ClientPathManager {
         if (origin == PathOrigin.LOCAL && persistence != null) {
             persistence.deleteLocal(pathId);
         }
+        recalculateNextPathNumber();
     }
 
     public void removeSharedPath(UUID pathId) {
@@ -162,11 +164,11 @@ public class ClientPathManager {
         recording = true;
         UUID id = UUID.randomUUID();
         localRecording = new PathData(id, "Path-" + nextPathNumber, UUID.randomUUID(), "Player", System.currentTimeMillis(), "minecraft:overworld", new ArrayList<>());
-        nextPathNumber++;
         addMyPath(localRecording);
         setPathVisible(localRecording.getPathId());
         lastCapturedPoint = null;
         if (persistence != null) persistence.markDirty(localRecording.getPathId());
+        nextPathNumber++;
     }
 
     public void stopRecordingLocal() {
@@ -296,6 +298,7 @@ public class ClientPathManager {
                 visiblePaths.add(id);
             }
         }
+        recalculateNextPathNumber();
     }
 
     public void applyServerShare(PathData path) {
@@ -338,4 +341,21 @@ public class ClientPathManager {
         return PathOrigin.SERVER_SHARED;
     }
 
+    private void recalculateNextPathNumber() {
+        int maxNum = 0;
+        for (PathData path : myPaths.values()) {
+            if (path.getPathName().startsWith("Path-")) {
+                try {
+                    String numStr = path.getPathName().substring(5);
+                    int num = Integer.parseInt(numStr);
+                    if (num > maxNum) {
+                        maxNum = num;
+                    }
+                } catch (NumberFormatException | IndexOutOfBoundsException e) {
+                    // Ignore paths with malformed names
+                }
+            }
+        }
+        nextPathNumber = maxNum + 1;
+    }
 }

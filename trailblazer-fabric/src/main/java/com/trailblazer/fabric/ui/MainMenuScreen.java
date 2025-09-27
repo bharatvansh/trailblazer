@@ -84,7 +84,7 @@ public class MainMenuScreen extends Screen {
         pathListWidget.clearEntries();
         List<PathData> paths = new ArrayList<>(showingMyPaths ? pathManager.getMyPaths() : pathManager.getSharedPaths());
         for (PathData path : paths) {
-            pathListWidget.addEntry(new PathListWidget.PathEntry(path, pathManager, showingMyPaths));
+            pathListWidget.addEntry(pathListWidget.new PathEntry(path, pathManager, showingMyPaths));
         }
         lastPathCount = paths.size();
         // Also refresh record button label in case state changed externally

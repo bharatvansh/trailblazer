@@ -16,6 +16,9 @@
       "com.trailblazer.fabric.TrailblazerFabricClient"
     ]
   },
+  "mixins": [
+    "trailblazer.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=${fabric_loader_version}",
     "fabric-api": "*",

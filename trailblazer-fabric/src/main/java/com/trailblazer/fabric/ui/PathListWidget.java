@@ -17,9 +17,81 @@ import com.trailblazer.fabric.networking.payload.c2s.DeletePathPayload;
 import java.util.List;
 
 public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> {
+    // Container geometry captured from constructor params so we can render a proper background
+    private final int containerTop;
+    private final int containerHeight;
 
     public PathListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
-        super(client, width, height, top, Math.max(itemHeight, 38));
+        super(client, width, height, top, Math.max(itemHeight, 36));
+        this.containerTop = top;
+        this.containerHeight = height;
+        // Attempt to disable the list's built-in background so we can fully control opacity
+        boolean disabledViaMethod = false;
+        try {
+            Class<?> c = net.minecraft.client.gui.widget.ElementListWidget.class;
+            while (c != null && !disabledViaMethod) {
+                for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
+                    if (m.getName().equals("setRenderBackground")
+                            && m.getParameterCount() == 1
+                            && m.getParameterTypes()[0] == boolean.class) {
+                        m.setAccessible(true);
+                        m.invoke(this, false);
+                        disabledViaMethod = true;
+                        break;
+                    }
+                }
+                c = c.getSuperclass();
+            }
+        } catch (Throwable t) {
+            // ignore
+        }
+        if (!disabledViaMethod) {
+            try {
+                Class<?> c = net.minecraft.client.gui.widget.ElementListWidget.class;
+                boolean fieldSet = false;
+                while (c != null && !fieldSet) {
+                    for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                        if (f.getType() == boolean.class && f.getName().equals("renderBackground")) {
+                            f.setAccessible(true);
+                            f.setBoolean(this, false);
+                            fieldSet = true;
+                            break;
+                        }
+                    }
+                    c = c.getSuperclass();
+                }
+                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: background disabled via {}",
+                        fieldSet ? "field" : (disabledViaMethod ? "method" : "none"));
+            } catch (Throwable t) {
+                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: could not disable built-in background.");
+            }
+        } else {
+            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: background disabled via method.");
+        }
+    }
+
+    // Note: The built-in background is suppressed via a mixin into EntryListWidget#drawMenuListBackground.
+
+    @Override
+    protected void renderList(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Container-wide background, final color: semi-transparent black with ~30% reduced opacity
+        int left = 0;
+        int right = this.width;
+        int top = this.getY();
+        int bottom = this.getY() + this.getHeight();
+        context.fill(left, top, right, bottom, 0x0B000000);
+        super.renderList(context, mouseX, mouseY, delta);
+    }
+
+    @Override
+    protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
+        // Restore default decorations (scrollbar, selection highlight)
+        super.renderDecorations(context, mouseX, mouseY);
+    }
+
+    @Override
+    protected void drawHeaderAndFooterSeparators(DrawContext context) {
+        super.drawHeaderAndFooterSeparators(context);
     }
 
     @Override
@@ -35,7 +107,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         return super.addEntry(entry);
     }
 
-    public static class PathEntry extends ElementListWidget.Entry<PathEntry> {
+    public class PathEntry extends ElementListWidget.Entry<PathEntry> {
     private final PathData path;
     private final ClientPathManager pathManager;
     private final boolean isMyPath;
@@ -65,13 +137,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             }).build();
 
             boolean serverAvailable = ServerIntegrationBridge.SERVER_INTEGRATION != null && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
-            if (origin == PathOrigin.LOCAL) {
-                this.shareButton.active = serverAvailable;
-            } else if (origin == PathOrigin.SERVER_OWNED) {
-                this.shareButton.active = serverAvailable;
-            } else {
-                this.shareButton.active = false;
-            }
+            this.shareButton.active = serverAvailable && origin != PathOrigin.SERVER_SHARED;
 
             this.editButton = ButtonWidget.builder(Text.of("Edit"), button -> {
                 MinecraftClient.getInstance().setScreen(new PathCreationScreen(pathManager, updatedPath -> {
@@ -117,86 +183,84 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
 
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
-            int baseX = x + 5;
-            int textY = y + 4; // slightly less top padding to compact the entry vertically
+            // Unified background block for the row
+            int bgLeft = x + 4;
+            int bgRight = x + entryWidth - 4;
+            int rowTop = y;
+            int rowContentBottom = y + entryHeight;
+            int fullRowBottom = rowTop + PathListWidget.this.itemHeight;
+            int rowBottom = Math.max(rowContentBottom, fullRowBottom);
+
+            // Row background: neutral semi-transparent dark to keep focus on content
+            int bgColor = 0x33000000;
+            context.fill(bgLeft, rowTop, bgRight, rowBottom, bgColor);
+            // Draw top border per row to keep crisp separators, and bottom border for the final row
+            context.fill(bgLeft, rowTop, bgRight, rowTop + 1, 0xFF000000);
+            if (index == PathListWidget.this.getEntryCount() - 1) {
+                context.fill(bgLeft, rowBottom - 1, bgRight, rowBottom, 0xFF000000);
+            }
+            // Draw left and right borders
+            context.fill(bgLeft, rowTop, bgLeft + 1, rowBottom, 0xFF000000);
+            context.fill(bgRight - 1, rowTop, bgRight, rowBottom, 0xFF000000);
+
+            // Layout metrics
+            final int topPadding = 4; // desired visual gap
+            final int buttonYOffset = topPadding; // button box y
+            final int textBaselineY = topPadding + y + 5; // tune baseline to align with button label vertically
+            int baseX = bgLeft + 4; // horizontal padding inside background
+
+            // Origin badge & path name
             if (origin != null) {
                 int badgeColor = originBadgeColor();
-                int squareX = baseX;
-                int squareY = textY;
-                context.fill(squareX, squareY, squareX + 8, squareY + 8, badgeColor);
-
-                if (mouseX >= squareX && mouseX <= squareX + 8 && mouseY >= squareY && mouseY <= squareY + 8) {
+                context.fill(baseX, textBaselineY - 1, baseX + 8, textBaselineY - 1 + 8, badgeColor);
+                // Tooltip hit box
+                if (mouseX >= baseX && mouseX <= baseX + 8 && mouseY >= textBaselineY - 1 && mouseY <= textBaselineY - 1 + 8) {
                     context.drawTooltip(MinecraftClient.getInstance().textRenderer, getOriginTooltipText(), mouseX, mouseY);
                 }
                 baseX += 12;
             }
-            // Calculate available width for text (subtract button area width)
-            int buttonAreaWidth = isMyPath ? 340 : 170; // 4 buttons vs 2 buttons (85px each + spacing)
-            int availableTextWidth = entryWidth - (baseX - x) - buttonAreaWidth - 10; // 10px padding
-            
-            // Trim path name if it's too long
+
+            int buttonWidth = 60;
+            int buttonHeight = 18;
+            int buttonSpacing = buttonWidth + 8;
+            int buttonAreaWidth = isMyPath ? (buttonSpacing * 4) : (buttonSpacing * 2);
+            int availableTextWidth = (bgRight - bgLeft) - (baseX - bgLeft) - buttonAreaWidth - 8;
             var textRenderer = MinecraftClient.getInstance().textRenderer;
             String displayName = path.getPathName();
             if (textRenderer.getWidth(displayName) > availableTextWidth) {
                 displayName = textRenderer.trimToWidth(displayName, availableTextWidth - textRenderer.getWidth("...")) + "...";
             }
-            
-            context.drawTextWithShadow(textRenderer, displayName, baseX, textY, 0xFFFFFF);
+            context.drawText(textRenderer, displayName, baseX, textBaselineY, 0xFFFFFFFF, true);
             if (!isMyPath) {
                 String ownerText = " (by " + path.getOwnerName() + ")";
                 int ownerX = baseX + textRenderer.getWidth(displayName);
-                // Make sure owner text doesn't overflow either
                 int remainingWidth = availableTextWidth - textRenderer.getWidth(displayName);
                 if (textRenderer.getWidth(ownerText) > remainingWidth) {
                     ownerText = textRenderer.trimToWidth(ownerText, remainingWidth - textRenderer.getWidth("...")) + "...";
                 }
-                context.drawTextWithShadow(textRenderer, ownerText, ownerX, textY, 0xAAAAAA);
+                context.drawTextWithShadow(textRenderer, ownerText, ownerX, textBaselineY, 0xFF999999);
             }
-            
-            int buttonX = x + entryWidth - 80;
-            int buttonY = y;
-            int buttonWidth = 75;
-            int buttonHeight = 20;
 
-            toggleButton.setX(buttonX);
-            toggleButton.setY(buttonY);
-            toggleButton.setWidth(buttonWidth);
-            toggleButton.setHeight(buttonHeight);
+            // Buttons aligned to right inside background band
+            int buttonX = bgRight - (buttonWidth + 2);
+            int buttonY = y + buttonYOffset;
+            toggleButton.setX(buttonX); toggleButton.setY(buttonY); toggleButton.setWidth(buttonWidth); toggleButton.setHeight(buttonHeight);
             toggleButton.render(context, mouseX, mouseY, tickDelta);
-
             if (isMyPath) {
-                buttonX -= 85;
-                shareButton.setX(buttonX);
-                shareButton.setY(buttonY);
-                shareButton.setWidth(buttonWidth);
-                shareButton.setHeight(buttonHeight);
-                shareButton.render(context, mouseX, mouseY, tickDelta);
+                buttonX -= buttonSpacing; shareButton.setX(buttonX); shareButton.setY(buttonY); shareButton.setWidth(buttonWidth); shareButton.setHeight(buttonHeight); shareButton.render(context, mouseX, mouseY, tickDelta);
+                buttonX -= buttonSpacing; editButton.setX(buttonX); editButton.setY(buttonY); editButton.setWidth(buttonWidth); editButton.setHeight(buttonHeight); editButton.render(context, mouseX, mouseY, tickDelta);
+            }
+            buttonX -= buttonSpacing; deleteButton.setX(buttonX); deleteButton.setY(buttonY); deleteButton.setWidth(buttonWidth); deleteButton.setHeight(buttonHeight); deleteButton.render(context, mouseX, mouseY, tickDelta);
 
-                buttonX -= 85;
-                editButton.setX(buttonX);
-                editButton.setY(buttonY);
-                editButton.setWidth(buttonWidth);
-                editButton.setHeight(buttonHeight);
-                editButton.render(context, mouseX, mouseY, tickDelta);
+            // Coordinates positioned relative to content to avoid button overlap while respecting bottom padding
+            int coordMaxY = rowBottom - textRenderer.fontHeight - 1;
+            // Original baseline (pre-dynamic changes) — keep behavior and move it exactly 1px down.
+            int originalBaseline = rowBottom - 1 - 3 - textRenderer.fontHeight; // 3px bottom padding before baseline
+            int coordBaseline = Math.min(originalBaseline + 2, coordMaxY); // Push down by 1 more pixel
+            if (coordBaseline >= rowTop + topPadding) {
+                drawCoordinates(context, baseX, bgRight - 10, coordBaseline, textRenderer);
             }
 
-            buttonX -= 85;
-            deleteButton.setX(buttonX);
-            deleteButton.setY(buttonY);
-            deleteButton.setWidth(buttonWidth);
-            deleteButton.setHeight(buttonHeight);
-            deleteButton.render(context, mouseX, mouseY, tickDelta);
-
-            // Coordinates row below buttons (20px button height + padding)
-            int coordY = y + 22; // below buttons
-            int contentRightX = x + entryWidth - 10; // align with list padding
-            drawCoordinates(context, baseX, contentRightX, coordY, textRenderer);
-
-            // Draw separator line at the bottom of the entry
-            int separatorY = y + entryHeight - 1;
-            context.fill(x, separatorY, x + entryWidth, separatorY + 1, 0xFF444444); // Dark gray separator
-
-            // Reset confirm state if timeout elapsed (and user didn't click second time)
             if (awaitingDeleteConfirm && System.currentTimeMillis() - deleteConfirmStartMs > CONFIRM_TIMEOUT_MS) {
                 awaitingDeleteConfirm = false;
                 deleteButton.setMessage(origin == PathOrigin.SERVER_SHARED ? Text.of("Remove") : Text.of("Delete"));
@@ -207,7 +271,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             boolean isVisible = pathManager.isPathVisible(path.getPathId());
             return Text.of("Toggle: " + (isVisible ? "ON" : "OFF"))
                 .copy()
-                .formatted(isVisible ? Formatting.GREEN : Formatting.RED);
+                .formatted(isVisible ? Formatting.DARK_GREEN : Formatting.DARK_RED);
         }
 
         @Override
@@ -235,8 +299,8 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
 
         private int originBadgeColor() {
             return switch (origin) {
-                case LOCAL -> 0xFF55FF55; // Green
-                case SERVER_OWNED, SERVER_SHARED -> 0xFF55AAFF; // Blue
+                case LOCAL -> 0xFF4CAF50; // More subtle green
+                case SERVER_OWNED, SERVER_SHARED -> 0xFF2196F3; // More subtle blue
             };
         }
 
@@ -274,9 +338,9 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 arrowX = maxArrowX;
             }
 
-            context.drawTextWithShadow(tr, startText, startX, yCoord, 0xBBBBBB);
-            context.drawTextWithShadow(tr, arrow, arrowX, yCoord, 0x888888);
-            context.drawTextWithShadow(tr, endText, endX, yCoord, 0xBBBBBB);
+            context.drawTextWithShadow(tr, startText, startX, yCoord, 0xFF808080); // More muted gray
+            context.drawTextWithShadow(tr, arrow, arrowX, yCoord, 0xFF606060); // Subtle arrow
+            context.drawTextWithShadow(tr, endText, endX, yCoord, 0xFF808080); // Consistent muted gray
         }
     }
 }
