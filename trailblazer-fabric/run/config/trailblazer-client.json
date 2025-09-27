@@ -1,7 +1,0 @@
-{
-  "maxPointsPerPath": 5000,
-  "autosaveIntervalSeconds": 30,
-  "recordingOverlayEnabled": true,
-  "performanceProfile": "balanced",
-  "autoRequestShareSync": true
-}
