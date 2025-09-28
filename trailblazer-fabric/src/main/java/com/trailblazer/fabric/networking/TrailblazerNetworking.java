@@ -12,6 +12,7 @@ import com.trailblazer.fabric.networking.payload.s2c.PathDataSyncPayload;
 import com.trailblazer.fabric.networking.payload.s2c.PathDeletedPayload;
 import com.trailblazer.fabric.networking.payload.s2c.SharedPathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.StopLivePathPayload;
+import com.trailblazer.fabric.networking.payload.s2c.PathActionResultPayload;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 
@@ -29,6 +30,7 @@ public class TrailblazerNetworking {
         PayloadTypeRegistry.playS2C().register(StopLivePathPayload.ID, StopLivePathPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(SharedPathPayload.ID, SharedPathPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(PathDeletedPayload.ID, PathDeletedPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(PathActionResultPayload.ID, PathActionResultPayload.CODEC);
         // Client-to-Server
         PayloadTypeRegistry.playC2S().register(ToggleRecordingPayload.ID, ToggleRecordingPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(DeletePathPayload.ID, DeletePathPayload.CODEC);

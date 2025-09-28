@@ -16,6 +16,7 @@ import com.trailblazer.fabric.networking.payload.s2c.PathDataSyncPayload;
 import com.trailblazer.fabric.networking.payload.s2c.PathDeletedPayload;
 import com.trailblazer.fabric.networking.payload.s2c.SharedPathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.StopLivePathPayload;
+import com.trailblazer.fabric.networking.payload.s2c.PathActionResultPayload;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
@@ -92,5 +93,18 @@ public class ClientPacketHandler {
         ClientPlayNetworking.registerGlobalReceiver(PathDeletedPayload.ID, (payload, context) ->
             context.client().execute(() -> pathManager.removeServerPath(payload.pathId()))
         );
+
+        ClientPlayNetworking.registerGlobalReceiver(PathActionResultPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                var client = context.client();
+                if (payload.updatedPath() != null) {
+                    pathManager.onPathUpdated(payload.updatedPath());
+                }
+                if (client.player != null && payload.message() != null && !payload.message().isEmpty()) {
+                    net.minecraft.text.Style style = payload.success() ? net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.GREEN) : net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.RED);
+                    client.player.sendMessage(net.minecraft.text.Text.literal(payload.message()).setStyle(style), false);
+                }
+            });
+        });
     }
 }

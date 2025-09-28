@@ -29,6 +29,7 @@ import com.trailblazer.plugin.networking.payload.s2c.PathDataSyncPayload;
 import com.trailblazer.plugin.networking.payload.s2c.PathDeletedPayload;
 import com.trailblazer.plugin.networking.payload.s2c.SharePathPayload;
 import com.trailblazer.plugin.networking.payload.s2c.StopLivePathPayload;
+import com.trailblazer.plugin.networking.payload.s2c.PathActionResultPayload;
 
 public class ServerPacketHandler implements Listener, PluginMessageListener {
 
@@ -51,6 +52,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, StopLivePathPayload.CHANNEL);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, SharePathPayload.CHANNEL_NAME);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathDeletedPayload.CHANNEL_NAME);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathActionResultPayload.CHANNEL);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
@@ -99,10 +101,14 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                     dataManager.deletePath(player.getUniqueId(), pathId);
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         sendPathDeleted(player, pathId);
+                        sendActionResult(player, "delete", pathId, true, "Path deleted successfully.", null);
                     });
+                } else {
+                    sendActionResult(player, "delete", pathId, false, "You do not own this path.", null);
                 }
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to process delete path payload from " + player.getName() + ": " + e.getMessage());
+                sendActionResult(player, "delete", null, false, "An error occurred while deleting the path.", null);
             }
             return;
         }
@@ -213,6 +219,12 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         targetPlayer.sendPluginMessage(plugin, SharePathPayload.CHANNEL_NAME, payload.toBytes());
     }
 
+    private void sendActionResult(Player player, String action, UUID pathId, boolean success, String message, PathData updated) {
+        if (!isModdedPlayer(player)) return;
+        PathActionResultPayload payload = new PathActionResultPayload(action, pathId, success, message, updated);
+        player.sendPluginMessage(plugin, PathActionResultPayload.CHANNEL, payload.toBytes());
+    }
+
     private void handleSharePathWithPlayers(Player sender, byte[] message) {
         try {
             ByteBuffer buffer = ByteBuffer.wrap(message);
@@ -227,7 +239,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             paths.stream()
                 .filter(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(sender.getUniqueId()))
                 .findFirst()
-                .ifPresent(path -> {
+                .ifPresentOrElse(path -> {
                     path.getSharedWith().addAll(playerIds);
                     dataManager.savePath(path);
                     for (UUID targetPlayerId : playerIds) {
@@ -236,9 +248,13 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                             sendSharePath(targetPlayer, path);
                         }
                     }
+                    sendActionResult(sender, "share", pathId, true, "Path shared successfully.", null);
+                }, () -> {
+                    sendActionResult(sender, "share", pathId, false, "You do not own this path.", null);
                 });
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to process share path with players payload from " + sender.getName() + ": " + e.getMessage());
+            sendActionResult(sender, "share", null, false, "An error occurred while sharing the path.", null);
         }
     }
 
@@ -254,10 +270,17 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
             List<PathData> updatedPaths = dataManager.updateMetadata(player.getUniqueId(), pathId, newName, color);
             if (updatedPaths != null) {
-                plugin.getServer().getScheduler().runTask(plugin, () -> sendAllPathData(player, updatedPaths));
+                PathData updatedPath = updatedPaths.stream().filter(p -> p.getPathId().equals(pathId)).findFirst().orElse(null);
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    sendAllPathData(player, updatedPaths);
+                    sendActionResult(player, "update_metadata", pathId, true, "Path updated successfully.", updatedPath);
+                });
+            } else {
+                sendActionResult(player, "update_metadata", pathId, false, "Failed to update path. You may not be the owner or the name is taken.", null);
             }
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to process update metadata payload from " + player.getName() + ": " + e.getMessage());
+            sendActionResult(player, "update_metadata", null, false, "An error occurred while updating the path.", null);
         }
     }
 

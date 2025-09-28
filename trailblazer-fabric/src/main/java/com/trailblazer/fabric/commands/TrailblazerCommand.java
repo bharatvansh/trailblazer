@@ -159,11 +159,11 @@ public final class TrailblazerCommand {
         UUID pathId = path.getPathId();
 
         if (pathManager.isServerBacked(pathId) && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported()) {
-            // Send an update payload to the server
+            // Send an update payload to the server and wait for the PathActionResultPayload
             ClientPlayNetworking.send(new UpdatePathMetadataPayload(pathId, newName, path.getColorArgb()));
             source.sendFeedback(Text.literal("Requested server to rename '" + oldName + "' to '" + newName + "'.").formatted(Formatting.GREEN));
         } else {
-            // Rename locally
+            // Rename locally for non-server-backed paths
             path.setPathName(newName);
             pathManager.onPathUpdated(path); // This marks it as dirty for persistence
             source.sendFeedback(Text.literal("Renamed '" + oldName + "' to '" + newName + "' locally.").formatted(Formatting.GREEN));
