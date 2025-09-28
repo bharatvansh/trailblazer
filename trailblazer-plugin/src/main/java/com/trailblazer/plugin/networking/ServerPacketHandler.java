@@ -38,6 +38,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private final Set<UUID> moddedPlayers = new HashSet<>();
     private static final String UPDATE_METADATA_CHANNEL = "trailblazer:update_path_metadata";
     private static final String SHARE_PATH_WITH_PLAYERS_CHANNEL = "trailblazer:share_path_with_players";
+    private static final String SHARE_REQUEST_CHANNEL = "trailblazer:share_request";
 
     private final PathDataManager dataManager;
 
@@ -54,6 +55,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathDeletedPayload.CHANNEL_NAME);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathActionResultPayload.CHANNEL);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_REQUEST_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_PATH_WITH_PLAYERS_CHANNEL, this);
@@ -122,9 +124,12 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             handleSharePathWithPlayers(player, message);
             return;
         }
-    }
 
-    // ... (onPlayerJoin, onPlayerQuit, isModdedPlayer remain unchanged) ...
+        if (channel.equalsIgnoreCase(SHARE_REQUEST_CHANNEL)) {
+            handleShareRequest(player, message);
+            return;
+        }
+    }
 
     /**
      * Convenience method to send a single path. Wraps it in a list.
@@ -284,6 +289,46 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         }
     }
 
+    private void handleShareRequest(Player sender, byte[] message) {
+        try {
+            ByteBuffer buffer = ByteBuffer.wrap(message);
+            int targetCount = readVarInt(buffer);
+            List<UUID> targets = new ArrayList<>(targetCount);
+            for (int i = 0; i < targetCount; i++) {
+                targets.add(new UUID(buffer.getLong(), buffer.getLong()));
+            }
+            String json = readString(buffer);
+            PathData path = gson.fromJson(json, PathData.class);
+            if (path == null) {
+                throw new IllegalArgumentException("Received empty shared path data");
+            }
+            if (path.getOriginPathId() == null || path.getOriginOwnerUUID() == null || path.getOriginOwnerName() == null) {
+                path.setOrigin(path.getPathId(), sender.getUniqueId(), sender.getName());
+            }
+
+            int delivered = 0;
+            for (UUID targetId : targets) {
+                Player target = plugin.getServer().getPlayer(targetId);
+                if (target != null && target.isOnline() && isModdedPlayer(target)) {
+                    SharePathPayload payload = new SharePathPayload(path);
+                    target.sendPluginMessage(plugin, SharePathPayload.CHANNEL_NAME, payload.toBytes());
+                    delivered++;
+                }
+            }
+
+            if (delivered > 0) {
+                sendActionResult(sender, "share", path.getPathId(), true,
+                        "Shared path with " + delivered + " player(s).", null);
+            } else {
+                sendActionResult(sender, "share", path.getPathId(), false,
+                        "No target players were online with Trailblazer.", null);
+            }
+        } catch (Exception ex) {
+            plugin.getLogger().warning("Failed to process share request payload from " + sender.getName() + ": " + ex.getMessage());
+            sendActionResult(sender, "share", null, false, "An error occurred while sharing the path.", null);
+        }
+    }
+
     private static int readVarInt(ByteBuffer buffer) {
         int numRead = 0;
         int result = 0;
@@ -300,5 +345,15 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         } while ((read & 0x80) != 0);
 
         return result;
+    }
+
+    private String readString(ByteBuffer buffer) {
+        int length = readVarInt(buffer);
+        if (length < 0 || length > 1_048_576) {
+            throw new IllegalStateException("Invalid string length: " + length);
+        }
+        byte[] data = new byte[length];
+        buffer.get(data);
+        return new String(data, StandardCharsets.UTF_8);
     }
 }

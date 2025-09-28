@@ -24,6 +24,7 @@ import com.trailblazer.fabric.persistence.PathPersistenceManager;
 public class ClientPathManager {
     public enum PathOrigin {
         LOCAL,
+        IMPORTED,
         SERVER_OWNED,
         SERVER_SHARED
     }
@@ -62,6 +63,10 @@ public class ClientPathManager {
         setPathVisible(path.getPathId()); // Make shared paths visible by default
     }
 
+    public void addImportedPath(PathData path) {
+        putPath(path, PathOrigin.IMPORTED);
+    }
+
     public void removePath(UUID pathId) {
         myPaths.remove(pathId);
         sharedPaths.remove(pathId);
@@ -92,7 +97,7 @@ public class ClientPathManager {
         myPaths.remove(pathId);
         visiblePaths.remove(pathId);
         pathOrigins.remove(pathId);
-        if (origin == PathOrigin.LOCAL && persistence != null) {
+        if ((origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED) && persistence != null) {
             persistence.deleteLocal(pathId);
         }
         recalculateNextPathNumber();
@@ -163,7 +168,14 @@ public class ClientPathManager {
         if (recording) return;
         recording = true;
         UUID id = UUID.randomUUID();
-        localRecording = new PathData(id, "Path-" + nextPathNumber, UUID.randomUUID(), "Player", System.currentTimeMillis(), "minecraft:overworld", new ArrayList<>());
+        MinecraftClient client = MinecraftClient.getInstance();
+        UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : (client != null && client.getSession() != null ? client.getSession().getUuidOrNull() : UUID.randomUUID());
+        String ownerName = resolveLocalPlayerName("Player");
+        String dimension = "minecraft:overworld";
+        if (client != null && client.player != null && client.player.getWorld() != null) {
+            dimension = client.player.getWorld().getRegistryKey().getValue().toString();
+        }
+        localRecording = new PathData(id, "Path-" + nextPathNumber, ownerUuid, ownerName, System.currentTimeMillis(), dimension, new ArrayList<>());
         addMyPath(localRecording);
         setPathVisible(localRecording.getPathId());
         lastCapturedPoint = null;
@@ -179,6 +191,21 @@ public class ClientPathManager {
         }
         localRecording = null;
         lastCapturedPoint = null;
+    }
+
+    public void cancelRecordingLocal() {
+        if (!recording) return;
+        recording = false;
+        if (localRecording != null) {
+            // Remove the partially recorded path (do not persist)
+            UUID id = localRecording.getPathId();
+            myPaths.remove(id);
+            visiblePaths.remove(id);
+            pathOrigins.remove(id);
+            localRecording = null;
+            lastCapturedPoint = null;
+            recalculateNextPathNumber();
+        }
     }
 
     /** Called each client tick to append points when recording locally. */
@@ -230,7 +257,16 @@ public class ClientPathManager {
     }
 
     public Collection<PathData> getSharedPaths() {
-        return sharedPaths.values();
+        List<PathData> imported = new ArrayList<>();
+        for (PathData path : myPaths.values()) {
+            if (getPathOrigin(path.getPathId()) == PathOrigin.IMPORTED) {
+                imported.add(path);
+            }
+        }
+        if (!sharedPaths.isEmpty()) {
+            imported.addAll(sharedPaths.values());
+        }
+        return imported;
     }
 
     public PathOrigin getPathOrigin(UUID pathId) {
@@ -243,7 +279,8 @@ public class ClientPathManager {
     }
 
     public boolean isLocalPath(UUID pathId) {
-        return getPathOrigin(pathId) == PathOrigin.LOCAL;
+        PathOrigin origin = getPathOrigin(pathId);
+        return origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED;
     }
 
     public void setLocalPlayerUuid(UUID uuid) {
@@ -302,9 +339,27 @@ public class ClientPathManager {
     }
 
     public void applyServerShare(PathData path) {
-        PathOrigin origin = determineServerOrigin(path);
-        putPath(path, origin);
-        setPathVisible(path.getPathId());
+        if (path == null) {
+            return;
+        }
+        UUID newId = UUID.randomUUID();
+        UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : path.getOwnerUUID();
+        String ownerName = resolveLocalPlayerName(path.getOwnerName());
+        String displayName = uniquePathName(path.getPathName());
+        List<Vector3d> copiedPoints = new ArrayList<>(path.getPoints());
+        PathData imported = new PathData(newId, displayName, ownerUuid, ownerName,
+                System.currentTimeMillis(), path.getDimension(), copiedPoints, path.getColorArgb());
+        UUID originPathId = path.getOriginPathId() != null ? path.getOriginPathId() : path.getPathId();
+        UUID originOwner = path.getOriginOwnerUUID() != null ? path.getOriginOwnerUUID() : path.getOwnerUUID();
+        String originOwnerName = path.getOriginOwnerName() != null ? path.getOriginOwnerName() : path.getOwnerName();
+        imported.setOrigin(originPathId, originOwner, originOwnerName);
+
+        addImportedPath(imported);
+        setPathVisible(imported.getPathId());
+        if (persistence != null) {
+            persistence.markDirty(imported.getPathId());
+        }
+        recalculateNextPathNumber();
     }
 
     // --- FOR TESTING ---
@@ -362,5 +417,40 @@ public class ClientPathManager {
             }
         }
         nextPathNumber = maxNum + 1;
+    }
+
+    private String resolveLocalPlayerName(String fallback) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.getSession() != null) {
+            String username = client.getSession().getUsername();
+            if (username != null && !username.isBlank()) {
+                return username;
+            }
+        }
+        return fallback != null && !fallback.isBlank() ? fallback : "Player";
+    }
+
+    private String uniquePathName(String proposed) {
+        String base = (proposed == null || proposed.isBlank()) ? "Shared Path" : proposed.trim();
+        String candidate = base;
+        int index = 2;
+        while (pathNameExists(candidate)) {
+            candidate = base + " (" + index++ + ")";
+        }
+        return candidate;
+    }
+
+    private boolean pathNameExists(String name) {
+        for (PathData path : myPaths.values()) {
+            if (path.getPathName().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        for (PathData path : sharedPaths.values()) {
+            if (path.getPathName().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

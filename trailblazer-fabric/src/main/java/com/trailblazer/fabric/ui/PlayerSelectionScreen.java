@@ -1,31 +1,31 @@
 package com.trailblazer.fabric.ui;
 
 import com.trailblazer.api.PathData;
-import com.trailblazer.fabric.networking.payload.c2s.SharePathWithPlayersPayload;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import com.trailblazer.fabric.sharing.PathShareSender;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 public class PlayerSelectionScreen extends Screen {
     private final PathData path;
     private final Screen parent;
     private final List<PlayerListEntry> onlinePlayers;
     private final List<UUID> selectedPlayers = new ArrayList<>();
+    private ButtonWidget shareButton;
 
     public PlayerSelectionScreen(PathData path, Screen parent) {
         super(Text.of("Share Path with Players"));
         this.path = path;
         this.parent = parent;
-        this.onlinePlayers = new ArrayList<>(MinecraftClient.getInstance().getNetworkHandler().getPlayerList());
+        var handler = MinecraftClient.getInstance().getNetworkHandler();
+        this.onlinePlayers = handler != null ? new ArrayList<>(handler.getPlayerList()) : new ArrayList<>();
     }
 
     @Override
@@ -35,7 +35,7 @@ public class PlayerSelectionScreen extends Screen {
         int buttonWidth = 200;
         int buttonHeight = 20;
         int buttonX = this.width / 2 - buttonWidth / 2;
-        int y = this.height / 2 - (onlinePlayers.size() * (buttonHeight + 5)) / 2;
+        int y = Math.max(40, this.height / 2 - (onlinePlayers.size() * (buttonHeight + 5)) / 2);
 
         for (PlayerListEntry playerEntry : onlinePlayers) {
             UUID playerUUID = playerEntry.getProfile().getId();
@@ -47,21 +47,35 @@ public class PlayerSelectionScreen extends Screen {
                     selectedPlayers.add(playerUUID);
                     button.setMessage(Text.of("[X] " + playerEntry.getProfile().getName()));
                 }
+                updateShareState();
             }).dimensions(buttonX, y, buttonWidth, buttonHeight).build();
             this.addDrawableChild(playerButton);
             y += buttonHeight + 5;
         }
 
-        this.addDrawableChild(ButtonWidget.builder(Text.of("Share"), button -> {
+        if (onlinePlayers.isEmpty()) {
+            this.addDrawableChild(ButtonWidget.builder(Text.of("No players online"), button -> {})
+                .dimensions(buttonX, y, buttonWidth, buttonHeight)
+                .build()).active = false;
+        }
+
+        shareButton = ButtonWidget.builder(Text.of("Share"), button -> {
             if (!selectedPlayers.isEmpty()) {
-                ClientPlayNetworking.send(new SharePathWithPlayersPayload(path.getPathId(), selectedPlayers));
+                PathShareSender.sharePath(path, selectedPlayers);
             }
             this.client.setScreen(parent);
-        }).dimensions(buttonX, this.height - 65, buttonWidth, buttonHeight).build());
+        }).dimensions(buttonX, this.height - 65, buttonWidth, buttonHeight).build();
+        shareButton.active = !selectedPlayers.isEmpty() && !onlinePlayers.isEmpty();
+        this.addDrawableChild(shareButton);
 
-        this.addDrawableChild(ButtonWidget.builder(Text.of("Cancel"), button -> {
-            this.client.setScreen(parent);
-        }).dimensions(buttonX, this.height - 40, buttonWidth, buttonHeight).build());
+        this.addDrawableChild(ButtonWidget.builder(Text.of("Cancel"), button -> this.client.setScreen(parent))
+            .dimensions(buttonX, this.height - 40, buttonWidth, buttonHeight).build());
+    }
+
+    private void updateShareState() {
+        if (shareButton != null) {
+            shareButton.active = !selectedPlayers.isEmpty();
+        }
     }
 
     @Override

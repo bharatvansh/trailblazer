@@ -69,11 +69,98 @@ public class PathCommand implements CommandExecutor {
             case "color":
                 handleColor(player, args);
                 break;
+            case "record":
+                handleRecord(player, args);
+                break;
             default:
                 sendHelpMessage(player);
                 break;
         }
         return true;
+    }
+
+    private void handleRecord(Player player, String[] args) {
+        var recManager = plugin.getRecordingManager();
+        boolean isModded = plugin.getServerPacketHandler().isModdedPlayer(player);
+        if (args.length < 2) {
+            player.sendMessage(Component.text("Usage: /trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.RED));
+            return;
+        }
+        String action = args[1].toLowerCase();
+        switch (action) {
+            case "start": {
+                if (isModded) {
+                    player.sendMessage(Component.text("You have the client mod. Use the client '/trailblazer record' toggle instead of server recording.", NamedTextColor.YELLOW));
+                    return;
+                }
+                String name = null;
+                if (args.length >= 3) {
+                    // join rest as name to allow spaces? Keep simple: single token for now.
+                    name = args[2];
+                }
+                if (recManager.isRecording(player.getUniqueId())) {
+                    player.sendMessage(Component.text("Already recording. Use /trailblazer record stop first.", NamedTextColor.YELLOW));
+                    return;
+                }
+                boolean started = recManager.startRecording(player, name);
+                if (started) {
+                    player.sendMessage(Component.text("Started recording " + (name != null ? name : "(auto-named)") + ".", NamedTextColor.GREEN));
+                } else {
+                    player.sendMessage(Component.text("Failed to start recording.", NamedTextColor.RED));
+                }
+                break; }
+            case "status": {
+                if (recManager.isRecording(player.getUniqueId())) {
+                    var active = recManager.getActive(player.getUniqueId());
+                    player.sendMessage(Component.text("Recording '" + active.getName() + "' with " + active.getPoints().size() + " points.", NamedTextColor.GREEN));
+                } else {
+                    if (isModded) {
+                        player.sendMessage(Component.text("No server recording active. Use client '/trailblazer record' to start a local recording.", NamedTextColor.GRAY));
+                    } else {
+                        player.sendMessage(Component.text("Not currently recording.", NamedTextColor.GRAY));
+                    }
+                }
+                break; }
+            case "stop": {
+                if (!recManager.isRecording(player.getUniqueId())) {
+                    if (isModded) {
+                        player.sendMessage(Component.text("No server recording in progress. To stop a client recording, use the client command toggle.", NamedTextColor.YELLOW));
+                    } else {
+                        player.sendMessage(Component.text("Not currently recording.", NamedTextColor.YELLOW));
+                    }
+                    return;
+                }
+                var active = recManager.getActive(player.getUniqueId());
+                var saved = recManager.stopRecording(player, true);
+                if (saved != null) {
+                    player.sendMessage(Component.text("Saved path '" + saved.getPathName() + "' with " + saved.getPoints().size() + " points.", NamedTextColor.GREEN));
+                    // For unmodded players we can auto-view using fallback renderer
+                    if (!plugin.getServerPacketHandler().isModdedPlayer(player)) {
+                        plugin.getPathRendererManager().startRendering(player, saved);
+                    } else {
+                        // Tell client to stop live preview
+                        plugin.getServerPacketHandler().sendStopLivePath(player);
+                    }
+                } else {
+                    player.sendMessage(Component.text("Recording discarded (not enough points).", NamedTextColor.YELLOW));
+                }
+                break; }
+            case "cancel": {
+                if (!recManager.isRecording(player.getUniqueId())) {
+                    if (isModded) {
+                        player.sendMessage(Component.text("No server recording active to cancel. Use client toggle for local recordings.", NamedTextColor.YELLOW));
+                    } else {
+                        player.sendMessage(Component.text("Not currently recording.", NamedTextColor.YELLOW));
+                    }
+                    return;
+                }
+                recManager.cancelRecording(player);
+                plugin.getServerPacketHandler().sendStopLivePath(player);
+                player.sendMessage(Component.text("Recording cancelled.", NamedTextColor.YELLOW));
+                break; }
+            default:
+                player.sendMessage(Component.text("Usage: /trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.RED));
+        }
     }
 
     private void handleInfo(Player player, String[] args) {
@@ -132,6 +219,10 @@ public class PathCommand implements CommandExecutor {
     }
 
     private void handleView(Player player, String[] args) {
+        if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+            player.sendMessage(Component.text("Client mod handles viewing paths. Use the in-game client UI or visibility toggles.", NamedTextColor.YELLOW));
+            return;
+        }
         if (args.length < 2) {
             player.sendMessage(Component.text("Usage: /path view <name>", NamedTextColor.RED));
             return;
@@ -149,6 +240,10 @@ public class PathCommand implements CommandExecutor {
     }
 
     private void handleHide(Player player, String[] args) {
+        if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+            player.sendMessage(Component.text("Client mod handles hiding paths. Use the client UI.", NamedTextColor.YELLOW));
+            return;
+        }
         plugin.getPathRendererManager().stopRendering(player);
         player.sendMessage(Component.text("Path hidden.", NamedTextColor.GREEN));
     }
@@ -291,5 +386,11 @@ public class PathCommand implements CommandExecutor {
         player.sendMessage(Component.text("/trailblazer share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
+        if (plugin.getServerPacketHandler() != null) {
+            player.sendMessage(Component.text("/trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.YELLOW).append(Component.text(" - Server-side path recording (unmodded clients only)", NamedTextColor.WHITE)));
+            if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+                player.sendMessage(Component.text("Client mod detected: prefer client '/trailblazer record' toggle for local recording.", NamedTextColor.GRAY));
+            }
+        }
     }
 }

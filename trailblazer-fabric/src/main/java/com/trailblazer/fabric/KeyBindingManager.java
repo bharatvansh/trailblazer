@@ -46,21 +46,14 @@ public class KeyBindingManager {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleRecordingKey.wasPressed()) {
                 if (client.player != null) {
-                    // Use the same logic as the /trailblazer record command
                     boolean isRecording = clientPathManager.isRecording();
-                    boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
 
-                    if (serverAvailable) {
-                        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload());
-                        client.player.sendMessage(Text.literal("Requested server to " + (isRecording ? "stop" : "start") + " recording.").formatted(Formatting.GREEN), true);
+                    if (isRecording) {
+                        clientPathManager.stopRecordingLocal();
+                        client.player.sendMessage(Text.literal("Stopped local recording.").formatted(Formatting.GREEN), true);
                     } else {
-                        if (isRecording) {
-                            clientPathManager.stopRecordingLocal();
-                            client.player.sendMessage(Text.literal("Stopped local recording.").formatted(Formatting.GREEN), true);
-                        } else {
-                            clientPathManager.startRecordingLocal();
-                            client.player.sendMessage(Text.literal("Started local recording.").formatted(Formatting.GREEN), true);
-                        }
+                        clientPathManager.startRecordingLocal();
+                        client.player.sendMessage(Text.literal("Started local recording.").formatted(Formatting.GREEN), true);
                     }
                 }
             }

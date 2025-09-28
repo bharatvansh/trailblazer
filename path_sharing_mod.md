@@ -8,7 +8,7 @@ Artifacts:
   - Records player movement locally (singleplayer or any server).
   - Renders stored + shared paths.
   - Persists paths to per-world folder (singleplayer) or a per-server cache directory.
-  - Provides local commands: `/tblocal list`, `/tblocal export <uuid>`.
+  - Provides unified `/trailblazer` command set (local + shared handling).
   - Automatically detects if the connected server supports Trailblazer (handshake channel presence) and enables Share buttons only then.
 2. Server Plugin (`trailblazer-plugin` - Paper/Purpur):
   - Authoritative shared storage, syncing & live updates.
@@ -38,9 +38,12 @@ Each path: `<uuid>.json` with schemaVersion=1 and fields mirroring PathData. An 
 ```
 
 ### Commands
-Client only:
-- `/tblocal list` – list local paths.
-- `/tblocal export <uuid>` – export a path JSON to `trailblazer_export/`.
+Client only (current build):
+- `/trailblazer record` – toggle recording
+- `/trailblazer list` – list paths
+- `/trailblazer info <name>` – info
+- `/trailblazer delete <name>` – delete
+- `/trailblazer rename <old> <new>` – rename
 
 ### Recording Overlay
 Shows red text: `Recording Path: <name> (<points>)` when active (can disable in config).

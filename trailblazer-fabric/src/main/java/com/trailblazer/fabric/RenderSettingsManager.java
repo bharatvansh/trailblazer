@@ -24,7 +24,11 @@ public class RenderSettingsManager {
     }
 
     public void setRenderMode(RenderMode mode) {
+        if (mode == null || mode == this.currentMode) {
+            return;
+        }
         this.currentMode = mode;
+        notifyModeChanged();
     }
 
     /**
@@ -41,8 +45,10 @@ public class RenderSettingsManager {
      */
     public void cycleRenderMode() {
         currentMode = currentMode.next();
+        notifyModeChanged();
+    }
 
-        // Notify the player of the change
+    private void notifyModeChanged() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null) {
             Text title = Text.literal("Render Mode");

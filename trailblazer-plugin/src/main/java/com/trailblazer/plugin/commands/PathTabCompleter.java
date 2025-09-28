@@ -17,7 +17,8 @@ import java.util.stream.Collectors;
 public class PathTabCompleter implements TabCompleter {
 
     private final PathDataManager pathDataManager;
-    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode", "share", "color", "info");
+    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode", "share", "color", "info", "record");
+    private static final List<String> RECORD_SUB = List.of("start","stop","cancel","status");
     // This will now correctly reflect the new RenderMode names
     private static final List<String> RENDER_MODES = Arrays.stream(RenderMode.values())
             .map(Enum::name)
@@ -34,7 +35,19 @@ public class PathTabCompleter implements TabCompleter {
         }
 
         if (args.length == 1) {
-            return StringUtil.copyPartialMatches(args[0], SUB_COMMANDS, new ArrayList<>());
+            List<String> base = new ArrayList<>(SUB_COMMANDS);
+            try {
+                var plugin = com.trailblazer.plugin.TrailblazerPlugin.getInstance();
+                boolean modded = plugin.getServerPacketHandler().isModdedPlayer(player);
+                if (modded) {
+                    // Remove server-side display related commands that client mod supersedes
+                    base.remove("record");
+                    base.remove("view");
+                    base.remove("hide");
+                    base.remove("rendermode");
+                }
+            } catch (Exception ignored) {}
+            return StringUtil.copyPartialMatches(args[0], base, new ArrayList<>());
         }
 
         if (args.length == 2) {
@@ -54,6 +67,13 @@ public class PathTabCompleter implements TabCompleter {
                             .map(com.trailblazer.api.PathData::getPathName)
                             .collect(Collectors.toList());
                     return StringUtil.copyPartialMatches(args[1], colorPathNames, new ArrayList<>());
+                case "record":
+                    return StringUtil.copyPartialMatches(args[1], RECORD_SUB, new ArrayList<>());
+                case "share":
+                    List<String> sharePathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
+                            .map(com.trailblazer.api.PathData::getPathName)
+                            .collect(Collectors.toList());
+                    return StringUtil.copyPartialMatches(args[1], sharePathNames, new ArrayList<>());
             }
         }
 
@@ -61,6 +81,31 @@ public class PathTabCompleter implements TabCompleter {
             // Suggest palette color names
             List<String> names = List.of("red","orange","yellow","green","cyan","blue","purple","pink","white");
             return StringUtil.copyPartialMatches(args[2], names, new ArrayList<>());
+        }
+
+        // share player name suggestions after path + players list
+        if (args.length == 3 && args[0].equalsIgnoreCase("share")) {
+            String current = args[2];
+            int comma = current.lastIndexOf(',');
+            final String prefixPart;
+            final String partial;
+            if (comma >= 0) {
+                prefixPart = current.substring(0, comma + 1); // keep trailing comma
+                partial = current.substring(comma + 1).trim();
+            } else {
+                prefixPart = "";
+                partial = current;
+            }
+            List<String> online = new ArrayList<>();
+            try {
+                var plugin = com.trailblazer.plugin.TrailblazerPlugin.getInstance();
+                plugin.getServer().getOnlinePlayers().forEach(p -> online.add(p.getName()));
+            } catch (Exception ignored) {}
+            List<String> matches = StringUtil.copyPartialMatches(partial, online, new ArrayList<>());
+            if (!prefixPart.isEmpty()) {
+                matches = matches.stream().map(s -> prefixPart + s).collect(Collectors.toList());
+            }
+            return matches;
         }
 
         return new ArrayList<>(); // No suggestions

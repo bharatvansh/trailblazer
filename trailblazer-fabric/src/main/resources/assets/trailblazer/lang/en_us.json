@@ -1,6 +1,8 @@
 {
   "key.trailblazer.toggle_recording": "Toggle Path Recording",
-  "category.trailblazer.main": "Trailblazer"
+  "key.trailblazer.cycle_render_mode": "Cycle Render Mode",
+  "key.trailblazer.open_menu": "Open Trailblazer Menu",
+  "key.categories.trailblazer": "Trailblazer"
 }
 
 

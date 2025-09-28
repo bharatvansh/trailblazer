@@ -3,6 +3,7 @@ package com.trailblazer.fabric;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.trailblazer.fabric.commands.TrailblazerCommand;
 import com.trailblazer.fabric.networking.ClientPacketHandler;
 import com.trailblazer.fabric.networking.TrailblazerNetworking;
 import com.trailblazer.fabric.networking.payload.c2s.HandshakePayload;
@@ -10,13 +11,13 @@ import com.trailblazer.fabric.networking.ServerIntegrationManager;
 import com.trailblazer.fabric.persistence.PathPersistenceManager;
 import com.trailblazer.fabric.config.TrailblazerClientConfig;
 import com.trailblazer.fabric.ui.RecordingOverlay;
-import com.trailblazer.fabric.commands.LocalPathCommands;
 import com.trailblazer.fabric.rendering.PathRenderer;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 
 
 public class TrailblazerFabricClient implements ClientModInitializer {
@@ -36,23 +37,30 @@ public class TrailblazerFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("Initializing Trailblazer client...");
 
-    this.clientPathManager = new ClientPathManager();
+        this.clientPathManager = new ClientPathManager();
         this.renderSettingsManager = new RenderSettingsManager();
         this.pathRenderer = new PathRenderer(clientPathManager, renderSettingsManager);
-    this.config = TrailblazerClientConfig.load(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir());
-    this.persistence = new PathPersistenceManager(clientPathManager, config);
-    this.serverIntegration = new ServerIntegrationManager();
-    ServerIntegrationBridge.SERVER_INTEGRATION = serverIntegration;
-    serverIntegration.registerLifecycle();
-    clientPathManager.attachPersistence(persistence, config.maxPointsPerPath);
+        this.config = TrailblazerClientConfig.load(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir());
+        this.persistence = new PathPersistenceManager(clientPathManager, config);
+        this.serverIntegration = new ServerIntegrationManager();
+        ServerIntegrationBridge.SERVER_INTEGRATION = serverIntegration;
+        serverIntegration.registerLifecycle();
+        clientPathManager.attachPersistence(persistence, config.maxPointsPerPath);
 
         pathRenderer.initialize();
-        KeyBindingManager.initialize(renderSettingsManager, clientPathManager);        TrailblazerNetworking.registerPayloadTypes();
+        KeyBindingManager.initialize(renderSettingsManager, clientPathManager);
+        TrailblazerCommand.register(clientPathManager, renderSettingsManager);
+        // Fallback: if some other mod triggers late dispatcher recreation, re-register after client start
+        ClientLifecycleEvents.CLIENT_STARTED.register(mc -> {
+            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("TrailblazerFabricClient: CLIENT_STARTED - ensuring commands registered");
+            TrailblazerCommand.register(clientPathManager, renderSettingsManager);
+        });
+        TrailblazerNetworking.registerPayloadTypes();
         ClientPacketHandler.registerS2CPackets(clientPathManager);
         if (config.recordingOverlayEnabled) {
             net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new RecordingOverlay(clientPathManager));
         }
-        LocalPathCommands.register(clientPathManager);
+        // /tblocal removed; unified under /trailblazer only.
         registerWorldLifecycle();
         registerClientTick();
 

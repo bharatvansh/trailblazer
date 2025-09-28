@@ -8,6 +8,6 @@ description: A mod for sharing player paths.
 # --- ADD THIS ENTIRE BLOCK ---
 commands:
   trailblazer:
-    description: Unified Trailblazer command (preferred). Subcommands: view, hide, delete, rename, share, rendermode, color
+    description: "Unified Trailblazer command (preferred). Subcommands: view, hide, delete, rename, share, rendermode, color, info, record"
     usage: /<command> [subcommand]
 # --- END ADDITION ---

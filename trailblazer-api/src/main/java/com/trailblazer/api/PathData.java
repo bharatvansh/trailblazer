@@ -22,6 +22,9 @@ public class PathData implements Serializable {
     private final String dimension;
     private final List<Vector3d> points;
     private final List<UUID> sharedWith;
+    private UUID originPathId;
+    private UUID originOwnerUUID;
+    private String originOwnerName;
     // Stored as 0xAARRGGBB. 0 or missing implies uninitialized -> lazily assigned.
     private int colorArgb; 
 
@@ -42,6 +45,9 @@ public class PathData implements Serializable {
         this.dimension = dimension;
         this.points = points;
         this.sharedWith = new ArrayList<>();
+        this.originPathId = pathId;
+        this.originOwnerUUID = ownerUUID;
+        this.originOwnerName = ownerName;
         this.colorArgb = 0; // Will be lazily assigned when accessed if still zero
     }
 
@@ -88,6 +94,24 @@ public class PathData implements Serializable {
 
     public List<UUID> getSharedWith() {
         return sharedWith;
+    }
+
+    public UUID getOriginPathId() {
+        return originPathId;
+    }
+
+    public UUID getOriginOwnerUUID() {
+        return originOwnerUUID;
+    }
+
+    public String getOriginOwnerName() {
+        return originOwnerName;
+    }
+
+    public void setOrigin(UUID originPathId, UUID originOwnerUUID, String originOwnerName) {
+        this.originPathId = originPathId;
+        this.originOwnerUUID = originOwnerUUID;
+        this.originOwnerName = originOwnerName;
     }
 
     /** Returns the ARGB color for this path, assigning one if missing (migration support). */

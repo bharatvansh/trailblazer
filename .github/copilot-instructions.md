@@ -52,7 +52,7 @@ Trailblazer is a Minecraft mod system for recording and sharing player paths, co
 
 ### Testing Client Mod
 - Use `./gradlew :trailblazer-fabric:runClient` to launch Minecraft with the mod
-- Test recording with keybind (default: unassigned) or `/tblocal` commands
+- Test recording with keybind (default: unassigned) and `/trailblazer record`
 - Verify standalone mode (no server plugin) and enhanced mode (with plugin)
 - Check persistence in `run/saves/<world>/trailblazer/paths/`
 

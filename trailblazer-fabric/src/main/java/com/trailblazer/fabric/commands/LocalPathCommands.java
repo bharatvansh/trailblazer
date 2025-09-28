@@ -4,12 +4,14 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.trailblazer.api.PathData;
 import com.trailblazer.fabric.ClientPathManager;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.text.Text;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -17,9 +19,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
 
 /** Client side commands for local path management (no server needed). */
 public final class LocalPathCommands {
@@ -30,9 +33,20 @@ public final class LocalPathCommands {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(literal("tblocal")
                 .then(literal("list").executes(ctx -> listPaths(ctx, manager)))
-                .then(literal("export").then(argument("id", StringArgumentType.string()).executes(ctx -> exportPath(ctx, manager))))
+                .then(literal("export")
+                    .then(argument("id", StringArgumentType.string())
+                        .suggests((ctx, builder) -> suggestLocalPathIds(ctx, builder, manager))
+                        .executes(ctx -> exportPath(ctx, manager))))
             );
         });
+    }
+
+    private static CompletableFuture<Suggestions> suggestLocalPathIds(CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder, ClientPathManager manager) {
+        manager.getMyPaths().stream()
+            .filter(p -> manager.isLocalPath(p.getPathId()))
+            .map(p -> p.getPathId().toString())
+            .forEach(builder::suggest);
+        return builder.buildFuture();
     }
 
     private static int listPaths(CommandContext<FabricClientCommandSource> ctx, ClientPathManager mgr) {

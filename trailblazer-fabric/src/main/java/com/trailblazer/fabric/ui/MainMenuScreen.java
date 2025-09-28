@@ -1,17 +1,19 @@
 package com.trailblazer.fabric.ui;
 
-import com.trailblazer.fabric.ClientPathManager;
-import com.trailblazer.fabric.RenderSettingsManager;
 import com.trailblazer.api.PathData;
+import com.trailblazer.fabric.ClientPathManager;
+import com.trailblazer.fabric.ClientPathManager.PathOrigin;
+import com.trailblazer.fabric.RenderSettingsManager;
 
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MainMenuScreen extends Screen {
     private final ClientPathManager pathManager;
@@ -49,10 +51,6 @@ public class MainMenuScreen extends Screen {
             updatePathList();
         }).dimensions(this.width / 2 + 5, tabY, tabWidth, tabHeight).build();
 
-        boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION != null && 
-                                 com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
-        sharedWithMeTab.active = serverAvailable;
-
         this.addDrawableChild(myPathsTab);
         this.addDrawableChild(sharedWithMeTab);
 
@@ -62,24 +60,16 @@ public class MainMenuScreen extends Screen {
         this.addDrawableChild(settingsButton);
 
         recordButton = ButtonWidget.builder(Text.of(getRecordingLabel()), button -> {
-            // Use the same logic as the /trailblazer record command
             boolean isRecording = pathManager.isRecording();
-            boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
 
-            if (serverAvailable) {
-                ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload());
+            if (isRecording) {
+                pathManager.stopRecordingLocal();
             } else {
-                if (isRecording) {
-                    pathManager.stopRecordingLocal();
-                } else {
-                    pathManager.startRecordingLocal();
-                }
+                pathManager.startRecordingLocal();
             }
 
-            // Update label immediately
             recordButton.setMessage(Text.of(getRecordingLabel()));
             if (!isRecording) {
-                // Close menu so recording can proceed unobstructed
                 this.client.setScreen(null);
             }
         }).dimensions(5, 5, 110, 20).build();
@@ -93,7 +83,29 @@ public class MainMenuScreen extends Screen {
 
     private void updatePathList() {
         pathListWidget.clearEntries();
-        List<PathData> paths = new ArrayList<>(showingMyPaths ? pathManager.getMyPaths() : pathManager.getSharedPaths());
+        List<PathData> paths = new ArrayList<>();
+        if (showingMyPaths) {
+            for (PathData path : pathManager.getMyPaths()) {
+                PathOrigin origin = pathManager.getPathOrigin(path.getPathId());
+                if (origin == PathOrigin.LOCAL || origin == PathOrigin.SERVER_OWNED) {
+                    paths.add(path);
+                }
+            }
+        } else {
+            Set<java.util.UUID> seen = new HashSet<>();
+            for (PathData path : pathManager.getMyPaths()) {
+                PathOrigin origin = pathManager.getPathOrigin(path.getPathId());
+                if (origin == PathOrigin.IMPORTED && seen.add(path.getPathId())) {
+                    paths.add(path);
+                }
+            }
+            for (PathData path : pathManager.getSharedPaths()) {
+                PathOrigin origin = pathManager.getPathOrigin(path.getPathId());
+                if (origin == PathOrigin.SERVER_SHARED && seen.add(path.getPathId())) {
+                    paths.add(path);
+                }
+            }
+        }
         for (PathData path : paths) {
             pathListWidget.addEntry(pathListWidget.new PathEntry(path, pathManager, showingMyPaths));
         }
@@ -101,6 +113,16 @@ public class MainMenuScreen extends Screen {
         // Also refresh record button label in case state changed externally
         if (recordButton != null) {
             recordButton.setMessage(Text.of(getRecordingLabel()));
+        }
+        refreshTabState();
+    }
+
+    private void refreshTabState() {
+        if (myPathsTab != null) {
+            myPathsTab.active = !showingMyPaths;
+        }
+        if (sharedWithMeTab != null) {
+            sharedWithMeTab.active = showingMyPaths;
         }
     }
 
@@ -130,19 +152,7 @@ public class MainMenuScreen extends Screen {
                 recordButton.setMessage(Text.of(desired));
             }
         }
-        
-        // Check server support and switch to My Paths if Shared With Me is selected but server not available
-        boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION != null && 
-                                 com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
-        if (!showingMyPaths && !serverAvailable) {
-            showingMyPaths = true;
-            updatePathList();
-        }
-        
-        // Update tab active state
-        if (sharedWithMeTab != null) {
-            sharedWithMeTab.active = serverAvailable;
-        }
+        refreshTabState();
     }
 
     @Override

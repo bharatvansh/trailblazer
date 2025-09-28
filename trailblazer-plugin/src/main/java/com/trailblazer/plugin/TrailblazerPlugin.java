@@ -21,6 +21,8 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
     private PathRendererManager pathRendererManager;
     private ServerPacketHandler serverPacketHandler;
     private PlayerRenderSettingsManager playerRenderSettingsManager;
+    private RecordingManager recordingManager;
+    private int recordingTaskId = -1;
 
     @Override
     public void onEnable() {
@@ -46,13 +48,20 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
         pathDataManager = new PathDataManager(this);
         playerRenderSettingsManager = new PlayerRenderSettingsManager();
         serverPacketHandler = new ServerPacketHandler(this);
-        pathRendererManager = new PathRendererManager(this); // This will show an error, we fix it next
+        pathRendererManager = new PathRendererManager(this);
+        recordingManager = new RecordingManager(this);
         pluginLogger.info("Managers initialized.");
     }
 
     private void registerEventListeners() {
         getServer().getPluginManager().registerEvents(this, this); // Register this class for the quit event
         pluginLogger.info("Event listeners registered.");
+        // Schedule recording tick task (every 2 ticks to reduce load slightly)
+        if (recordingTaskId == -1) {
+            recordingTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
+                if (recordingManager != null) recordingManager.tick();
+            }, 1L, 2L);
+        }
     }
     
     // Cleans up managers to prevent memory leaks when a player logs off.
@@ -60,6 +69,10 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         playerRenderSettingsManager.onPlayerQuit(event.getPlayer());
         pathRendererManager.stopRendering(event.getPlayer());
+        if (recordingManager != null && recordingManager.isRecording(event.getPlayer().getUniqueId())) {
+            // Auto-stop without saving to avoid dangling partial files on abrupt quit
+            recordingManager.cancelRecording(event.getPlayer());
+        }
     }
 
     private void registerCommands() {
@@ -78,6 +91,10 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
 
     public PlayerRenderSettingsManager getPlayerRenderSettingsManager() {
         return playerRenderSettingsManager;
+    }
+
+    public RecordingManager getRecordingManager() {
+        return recordingManager;
     }
 
     public ServerPacketHandler getServerPacketHandler() {

@@ -6,6 +6,7 @@ import com.trailblazer.plugin.rendering.RenderMode;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Color;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -49,7 +50,7 @@ public class PathRendererManager {
             return;
         }
 
-        World world = plugin.getServer().getWorld(path.getDimension());
+        World world = resolveWorld(path.getDimension());
         if (world == null) {
             player.sendMessage(Component.text("Cannot show path: It is in a different world (" + path.getDimension() + ").", NamedTextColor.RED));
             return;
@@ -90,8 +91,8 @@ public class PathRendererManager {
     }
 
     private void renderInterpolatedParticleTrail(Player player, PathData path, World world) {
-    List<Vector3d> points = path.getPoints();
-    final Particle.DustOptions dust = dustFor(path.getColorArgb());
+        List<Vector3d> points = path.getPoints();
+        final Particle.DustOptions dust = dustFor(path.getColorArgb());
         for (int i = 0; i < points.size() - 1; i++) {
             Vector start = new Vector(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
             Vector end = new Vector(points.get(i + 1).getX(), points.get(i + 1).getY(), points.get(i + 1).getZ());
@@ -159,5 +160,48 @@ public class PathRendererManager {
             }
         }
         return Optional.empty();
+    }
+
+    private World resolveWorld(String dimensionId) {
+        if (dimensionId == null || dimensionId.isBlank()) {
+            return null;
+        }
+
+        World world = plugin.getServer().getWorld(dimensionId);
+        if (world != null) {
+            return world;
+        }
+
+        try {
+            for (World candidate : plugin.getServer().getWorlds()) {
+                if (dimensionId.equals(candidate.key().asString())) {
+                    return candidate;
+                }
+            }
+        } catch (NoSuchMethodError ignored) {
+            // Older server versions may not expose World#key at runtime.
+        }
+
+        try {
+            NamespacedKey key = NamespacedKey.fromString(dimensionId);
+            if (key != null) {
+                try {
+                    world = plugin.getServer().getWorld(key);
+                    if (world != null) {
+                        return world;
+                    }
+                } catch (NoSuchMethodError ignored) {
+                    // Method unavailable; fall through to name-based fallback below.
+                }
+                world = plugin.getServer().getWorld(key.getKey());
+                if (world != null) {
+                    return world;
+                }
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Dimension string was not a valid namespaced key.
+        }
+
+        return null;
     }
 }

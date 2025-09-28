@@ -112,7 +112,18 @@ public class PathPersistenceManager {
             PathData data = new PathData(rec.pathId, rec.name != null? rec.name : "Path", rec.ownerUUID != null? rec.ownerUUID : UUID.randomUUID(),
                     rec.ownerName != null? rec.ownerName : "Player", rec.creationTimestamp != null? rec.creationTimestamp : System.currentTimeMillis(),
                     rec.dimension != null? rec.dimension : "minecraft:overworld", new ArrayList<>(pts), rec.color != null? rec.color : 0);
-            pathManager.addMyPath(data);
+            if (rec.originPathId != null || rec.originOwnerUUID != null || rec.originOwnerName != null) {
+                UUID originPath = rec.originPathId != null ? rec.originPathId : data.getPathId();
+                UUID originOwnerUuid = rec.originOwnerUUID != null ? rec.originOwnerUUID : data.getOwnerUUID();
+                String originOwnerName = rec.originOwnerName != null ? rec.originOwnerName : data.getOwnerName();
+                data.setOrigin(originPath, originOwnerUuid, originOwnerName);
+            }
+            boolean imported = rec.originPathId != null && rec.pathId != null && !rec.originPathId.equals(rec.pathId);
+            if (imported) {
+                pathManager.addImportedPath(data);
+            } else {
+                pathManager.addMyPath(data);
+            }
             pathManager.setPathVisible(data.getPathId());
         } catch (Exception e) {
             LOGGER.error("Failed to load path file {}", file, e);
@@ -252,6 +263,9 @@ public class PathPersistenceManager {
         String dimension;
         Integer color;
         List<Vector3d> points;
+        UUID originPathId;
+        UUID originOwnerUUID;
+        String originOwnerName;
 
         static PathFileRecord from(PathData d) {
             PathFileRecord r = new PathFileRecord();
@@ -263,6 +277,9 @@ public class PathPersistenceManager {
             r.dimension = d.getDimension();
             r.color = d.getColorArgb();
             r.points = new ArrayList<>(d.getPoints());
+            r.originPathId = d.getOriginPathId();
+            r.originOwnerUUID = d.getOriginOwnerUUID();
+            r.originOwnerName = d.getOriginOwnerName();
             return r;
         }
     }
