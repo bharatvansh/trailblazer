@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class PathTabCompleter implements TabCompleter {
 
     private final PathDataManager pathDataManager;
-    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode", "share", "color");
+    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode", "share", "color", "info");
     // This will now correctly reflect the new RenderMode names
     private static final List<String> RENDER_MODES = Arrays.stream(RenderMode.values())
             .map(Enum::name)
@@ -42,6 +42,7 @@ public class PathTabCompleter implements TabCompleter {
                 case "view":
                 case "delete":
                 case "rename":
+                case "info":
                     List<String> pathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
                             .map(com.trailblazer.api.PathData::getPathName)
                             .collect(Collectors.toList());

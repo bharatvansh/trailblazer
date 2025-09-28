@@ -7,7 +7,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import com.trailblazer.plugin.commands.PathCommand;
+import com.trailblazer.plugin.commands.TrailblazerCommand;
 import com.trailblazer.plugin.commands.PathTabCompleter;
 import com.trailblazer.plugin.networking.ServerPacketHandler;
 import com.trailblazer.plugin.rendering.PlayerRenderSettingsManager;
@@ -63,8 +63,8 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
     }
 
     private void registerCommands() {
-        getCommand("path").setExecutor(new PathCommand(this)); // This will also show an error
-        getCommand("path").setTabCompleter(new PathTabCompleter(pathDataManager));
+        getCommand("trailblazer").setExecutor(new TrailblazerCommand(this));
+        getCommand("trailblazer").setTabCompleter(new PathTabCompleter(pathDataManager));
         pluginLogger.info("Commands registered.");
     }
 

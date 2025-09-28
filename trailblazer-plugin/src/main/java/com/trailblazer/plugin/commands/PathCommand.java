@@ -1,6 +1,7 @@
 package com.trailblazer.plugin.commands;
 
 import com.trailblazer.api.PathData;
+import com.trailblazer.api.Vector3d;
 import com.trailblazer.plugin.TrailblazerPlugin;
 import com.trailblazer.plugin.rendering.PlayerRenderSettingsManager;
 import com.trailblazer.plugin.rendering.RenderMode;
@@ -50,6 +51,9 @@ public class PathCommand implements CommandExecutor {
             case "hide":
                 handleHide(player, args);
                 break;
+            case "info":
+                handleInfo(player, args);
+                break;
             case "delete":
                 handleDelete(player, args);
                 break;
@@ -70,6 +74,34 @@ public class PathCommand implements CommandExecutor {
                 break;
         }
         return true;
+    }
+
+    private void handleInfo(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(Component.text("Usage: /trailblazer info <name>", NamedTextColor.RED));
+            return;
+        }
+        String pathName = args[1];
+        Optional<PathData> pathOpt = pathDataManager.loadPaths(player.getUniqueId()).stream()
+            .filter(p -> p.getPathName().equalsIgnoreCase(pathName))
+            .findFirst();
+
+        if (pathOpt.isPresent()) {
+            PathData path = pathOpt.get();
+            List<Vector3d> points = path.getPoints();
+            if (points.isEmpty()) {
+                player.sendMessage(Component.text("Path '" + pathName + "' has no points.", NamedTextColor.YELLOW));
+                return;
+            }
+            Vector3d start = points.get(0);
+            Vector3d end = points.get(points.size() - 1);
+
+            player.sendMessage(Component.text("--- Info for " + pathName + " ---", NamedTextColor.GOLD));
+            player.sendMessage(Component.text("Start: ", NamedTextColor.GRAY).append(Component.text(String.format("%.1f, %.1f, %.1f", start.getX(), start.getY(), start.getZ()), NamedTextColor.WHITE)));
+            player.sendMessage(Component.text("End:   ", NamedTextColor.GRAY).append(Component.text(String.format("%.1f, %.1f, %.1f", end.getX(), end.getY(), end.getZ()), NamedTextColor.WHITE)));
+        } else {
+            player.sendMessage(Component.text("Path '" + pathName + "' not found.", NamedTextColor.RED));
+        }
     }
 
     private void handleColor(Player player, String[] args) {
@@ -252,12 +284,12 @@ public class PathCommand implements CommandExecutor {
 
     private void sendHelpMessage(Player player) {
         player.sendMessage(Component.text("--- Trailblazer Help ---", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("/path view <name>", NamedTextColor.YELLOW).append(Component.text(" - Show a path", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path hide", NamedTextColor.YELLOW).append(Component.text(" - Hide the current path", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path delete <name>", NamedTextColor.YELLOW).append(Component.text(" - Delete a path you own", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path you own", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/path color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer view <name>", NamedTextColor.YELLOW).append(Component.text(" - Show a path", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer hide", NamedTextColor.YELLOW).append(Component.text(" - Hide the current path", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer delete <name>", NamedTextColor.YELLOW).append(Component.text(" - Delete a path you own", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path you own", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
     }
 }

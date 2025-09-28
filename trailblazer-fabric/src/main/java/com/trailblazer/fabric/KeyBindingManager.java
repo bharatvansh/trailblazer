@@ -46,14 +46,21 @@ public class KeyBindingManager {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (toggleRecordingKey.wasPressed()) {
                 if (client.player != null) {
-                    // Prioritize local recording. The server is only for sharing saved paths.
-                    boolean starting = !clientPathManager.isRecording();
-                    if (starting) {
-                        client.player.sendMessage(Text.literal("Starting path recording...").formatted(Formatting.YELLOW), true);
-                        clientPathManager.startRecordingLocal();
+                    // Use the same logic as the /trailblazer record command
+                    boolean isRecording = clientPathManager.isRecording();
+                    boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
+
+                    if (serverAvailable) {
+                        net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload());
+                        client.player.sendMessage(Text.literal("Requested server to " + (isRecording ? "stop" : "start") + " recording.").formatted(Formatting.GREEN), true);
                     } else {
-                        client.player.sendMessage(Text.literal("Stopping path recording...").formatted(Formatting.YELLOW), true);
-                        clientPathManager.stopRecordingLocal();
+                        if (isRecording) {
+                            clientPathManager.stopRecordingLocal();
+                            client.player.sendMessage(Text.literal("Stopped local recording.").formatted(Formatting.GREEN), true);
+                        } else {
+                            clientPathManager.startRecordingLocal();
+                            client.player.sendMessage(Text.literal("Started local recording.").formatted(Formatting.GREEN), true);
+                        }
                     }
                 }
             }

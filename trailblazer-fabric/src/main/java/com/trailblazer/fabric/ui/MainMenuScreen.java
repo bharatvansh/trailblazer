@@ -62,16 +62,23 @@ public class MainMenuScreen extends Screen {
         this.addDrawableChild(settingsButton);
 
         recordButton = ButtonWidget.builder(Text.of(getRecordingLabel()), button -> {
-            boolean starting = !pathManager.isRecording();
-            if (starting) {
-                pathManager.startRecordingLocal();
+            // Use the same logic as the /trailblazer record command
+            boolean isRecording = pathManager.isRecording();
+            boolean serverAvailable = com.trailblazer.fabric.ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
+
+            if (serverAvailable) {
+                ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload());
             } else {
-                pathManager.stopRecordingLocal();
+                if (isRecording) {
+                    pathManager.stopRecordingLocal();
+                } else {
+                    pathManager.startRecordingLocal();
+                }
             }
-            ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.ToggleRecordingPayload());
+
             // Update label immediately
             recordButton.setMessage(Text.of(getRecordingLabel()));
-            if (starting) {
+            if (!isRecording) {
                 // Close menu so recording can proceed unobstructed
                 this.client.setScreen(null);
             }
