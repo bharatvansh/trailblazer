@@ -7,18 +7,13 @@ import net.minecraft.client.toast.SystemToast;
 import net.minecraft.text.Text;
 
 /**
- * Manages the client-side settings for how paths are rendered.
+ * Manages client-side path rendering settings.
  */
 public class RenderSettingsManager {
 
     private RenderMode currentMode = RenderMode.PARTICLE_TRAIL;
-    private double markerSpacing = 3.0; // Default spacing of 3 blocks for markers/arrows
+    private double markerSpacing = 3.0;
 
-    /**
-     * Gets the currently active render mode.
-     *
-     * @return The current RenderMode.
-     */
     public RenderMode getRenderMode() {
         return currentMode;
     }
@@ -31,18 +26,10 @@ public class RenderSettingsManager {
         notifyModeChanged();
     }
 
-    /**
-     * Gets the spacing for markers and arrows.
-     *
-     * @return The spacing in blocks.
-     */
     public double getMarkerSpacing() {
         return markerSpacing;
     }
 
-    /**
-     * Cycles to the next available render mode and notifies the player.
-     */
     public void cycleRenderMode() {
         currentMode = currentMode.next();
         notifyModeChanged();

@@ -58,8 +58,6 @@ public class KeyBindingManager {
                 }
             }
 
-            // --- NEW KEY LISTENER ---
-            // Handle the cycle render mode key
             while (cycleRenderModeKey.wasPressed()) {
                 if (client.player != null) {
                     LOGGER.info("Cycle render mode key pressed.");

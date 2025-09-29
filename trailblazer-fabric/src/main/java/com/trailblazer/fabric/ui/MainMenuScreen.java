@@ -111,7 +111,6 @@ public class MainMenuScreen extends Screen {
             pathListWidget.addEntry(pathListWidget.new PathEntry(path, pathManager, showingMyPaths));
         }
         lastPathCount = paths.size();
-        // Also refresh record button label in case state changed externally
         if (recordButton != null) {
             recordButton.setMessage(getRecordingText());
         }
@@ -136,7 +135,6 @@ public class MainMenuScreen extends Screen {
 
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        // DEBUG: remove any in-game dim entirely to isolate list tint sources
         if (this.client == null || this.client.world == null) {
             super.renderBackground(context, mouseX, mouseY, delta);
         }
@@ -149,7 +147,6 @@ public class MainMenuScreen extends Screen {
         if (currentCount != lastPathCount) {
             updatePathList();
         }
-        // Ensure label stays in sync with possible keybind toggles
         if (recordButton != null) {
             Text desired = getRecordingText();
             if (!recordButton.getMessage().getString().equals(desired.getString())) {
@@ -162,7 +159,6 @@ public class MainMenuScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
-        // Full-screen dim: darker (~15% alpha). Rows (31-35%) remain clearly on top.
         context.fill(0, 0, this.width, this.height, 0x26000000);
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 15, 0xFFFFFF);

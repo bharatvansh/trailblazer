@@ -137,7 +137,7 @@ public class PathCommand implements CommandExecutor {
                 PathData saved = recManager.stopRecording(player, true);
                 if (saved != null) {
                     player.sendMessage(Component.text("Saved path '" + saved.getPathName() + "' with " + saved.getPoints().size() + " points.", NamedTextColor.GREEN));
-                    // For unmodded players we can auto-view using fallback renderer
+                    
                     if (!plugin.getServerPacketHandler().isModdedPlayer(player)) {
                         plugin.getPathRendererManager().startRendering(player, saved);
                     } else {
@@ -217,7 +217,7 @@ public class PathCommand implements CommandExecutor {
         // Persist by rewriting file (reuse rename logic pattern)
         pathDataManager.savePath(path);
         player.sendMessage(Component.text("Color for path '" + path.getPathName() + "' set to " + com.trailblazer.api.PathColors.nameOrHex(path.getColorArgb()), NamedTextColor.GREEN));
-        // If currently rendering on server fallback, re-start to apply new color (will matter after server side color usage implemented)
+        
         plugin.getPathRendererManager().startRendering(player, path);
     }
 
@@ -412,7 +412,7 @@ public class PathCommand implements CommandExecutor {
                     }
 
                     boolean targetIsModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
-                    if (!targetIsModded) { // Preserve linkage only for unmodded targets (fallback server rendering)
+                    if (!targetIsModded) { 
                         if (!path.getSharedWith().contains(targetPlayer.getUniqueId())) {
                             path.getSharedWith().add(targetPlayer.getUniqueId());
                             updatedOwnerRecord = true;

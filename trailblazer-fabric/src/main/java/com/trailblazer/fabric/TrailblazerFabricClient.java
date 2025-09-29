@@ -50,7 +50,6 @@ public class TrailblazerFabricClient implements ClientModInitializer {
         pathRenderer.initialize();
         KeyBindingManager.initialize(renderSettingsManager, clientPathManager);
         TrailblazerCommand.register(clientPathManager, renderSettingsManager);
-        // Fallback: if some other mod triggers late dispatcher recreation, re-register after client start
         ClientLifecycleEvents.CLIENT_STARTED.register(mc -> {
             com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("TrailblazerFabricClient: CLIENT_STARTED - ensuring commands registered");
             TrailblazerCommand.register(clientPathManager, renderSettingsManager);
@@ -81,20 +80,17 @@ public class TrailblazerFabricClient implements ClientModInitializer {
     }
 
     private void registerWorldLifecycle() {
-        // When client joins a world (singleplayer) or a server, Minecraft sets runDirectory/world name paths; use game directory + saves for SP.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             client.execute(() -> {
                 clientPathManager.setLocalPlayerUuid(client.getSession().getUuidOrNull());
                 clientPathManager.applyServerSync(java.util.Collections.emptyList());
-                if (client.getServer() != null) { // singleplayer integrated server
-                    // Fallback approach: derive path from gameDir/saves/<levelName>
+                if (client.getServer() != null) {
                     String levelName = client.getServer().getSaveProperties().getLevelName();
                     java.nio.file.Path worldPath = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir()
                             .resolve("saves").resolve(levelName);
                     persistence.setWorldDirectory(worldPath.toAbsolutePath());
                     persistence.loadAll();
                 } else {
-                    // multiplayer: use a per-server temp directory keyed by server address (no persistence yet or optional)
                     String serverKey = handler.getConnection().getAddress().toString().replaceAll("[^a-zA-Z0-9-_]", "_");
                     java.nio.file.Path dir = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir()
                             .resolve("trailblazer_client_servers")

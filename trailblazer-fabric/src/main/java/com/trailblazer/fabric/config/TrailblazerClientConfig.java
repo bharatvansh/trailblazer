@@ -14,19 +14,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Simple JSON-backed client config. Lives in the standard config directory.
+ * Client configuration stored as JSON.
  */
 public class TrailblazerClientConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger("trailblazer-config");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String FILE_NAME = "trailblazer-client.json";
 
-    // --- Config fields (public for simple Gson binding) ---
     public int maxPointsPerPath = 5000;
-    public int autosaveIntervalSeconds = 30; // 0 disables periodic autosave
+    public int autosaveIntervalSeconds = 30;
     public boolean recordingOverlayEnabled = true;
-    public String performanceProfile = "balanced"; // future: balanced|low|high
-    public boolean autoRequestShareSync = true; // send handshake re-sync after stop
+    public String performanceProfile = "balanced";
+    public boolean autoRequestShareSync = true;
 
     public static TrailblazerClientConfig load(Path configDir) {
         try {

@@ -199,7 +199,6 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             this.shareButton = ButtonWidget.builder(Text.of("Share"), button -> {
                 MinecraftClient.getInstance().setScreen(new PlayerSelectionScreen(path, MinecraftClient.getInstance().currentScreen));
             }).build();
-        // Allow sharing of any path the local client "owns" (local/imported/server-owned). Server_shared copies remain read-only.
         boolean canShare = ClientPlayNetworking.canSend(SharePathRequestPayload.ID)
             && (origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_OWNED);
             this.shareButton.active = canShare;
@@ -209,7 +208,6 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     pathManager.onPathUpdated(updatedPath);
                 }, path, MinecraftClient.getInstance().currentScreen));
             }).build();
-            // Permit editing (rename / recolor) for server-owned paths as well; only server-shared copies remain view-only.
             if (!(origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_OWNED)) {
                 this.editButton.active = false;
                 this.editButton.setMessage(Text.of("View"));
@@ -230,12 +228,10 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                         button.setMessage(Text.of("Delete"));
                     }
                     case SERVER_OWNED -> {
-                        // Issue a server delete request (mirrors local Delete semantics for owned server paths)
                         if (ClientPlayNetworking.canSend(com.trailblazer.fabric.networking.payload.c2s.DeletePathPayload.ID)) {
                             net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
                                     new com.trailblazer.fabric.networking.payload.c2s.DeletePathPayload(path.getPathId()));
                         }
-                        // Optimistically remove; server will send confirmation / resync
                         pathManager.removeServerPath(path.getPathId());
                         button.setMessage(Text.of("Delete"));
                     }
@@ -245,7 +241,6 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     }
                 }
             }).build();
-            // Show "Delete" for anything the player owns (local/imported/server-owned). Shared copies show Remove (local unlink)
             if (origin == PathOrigin.SERVER_SHARED) {
                 this.deleteButton.setMessage(Text.of("Remove"));
             }

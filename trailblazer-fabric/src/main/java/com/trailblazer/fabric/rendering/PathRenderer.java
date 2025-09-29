@@ -26,7 +26,6 @@ public class PathRenderer {
     private final ClientPathManager clientPathManager;
     private final RenderSettingsManager renderSettingsManager;
 
-    // Cache of path color -> DustParticleEffect
     private static final Map<Integer, DustParticleEffect> COLOR_CACHE = new ConcurrentHashMap<>();
     private static final DustParticleEffect LIVE_TRAIL_PARTICLE = new DustParticleEffect(new Vector3f(1.0f, 0.5f, 0.0f), 1.0f);
 
@@ -52,15 +51,11 @@ public class PathRenderer {
     }
 
     private void renderActivePaths(ClientWorld world) {
-        // --- START OF FIX ---
-        // Render the live path if it exists, using a null check
         PathData livePath = clientPathManager.getLivePath();
         if (livePath != null) {
             renderPath(livePath, world, true);
         }
-        // --- END OF FIX ---
 
-        // Render all synced paths
         for (PathData path : clientPathManager.getVisiblePaths()) {
             renderPath(path, world, false);
         }
@@ -68,10 +63,9 @@ public class PathRenderer {
 
     private void renderPath(PathData path, ClientWorld world, boolean isLive) {
         if (path.getPoints().size() < 2) {
-            return; // Cannot render a path with fewer than 2 points
+            return;
         }
 
-        // Use the appropriate rendering method based on the current mode
         switch (renderSettingsManager.getRenderMode()) {
             case PARTICLE_TRAIL:
                 renderInterpolatedParticleTrail(path, world, isLive);
@@ -99,7 +93,6 @@ public class PathRenderer {
             double distance = start.distanceTo(end);
             Vec3d direction = end.subtract(start).normalize();
             
-            // Spawn a particle at small intervals along the line between points
             for (double d = 0; d < distance; d += 0.25) {
         Vec3d pos = start.add(direction.multiply(d));
         world.addParticle(
@@ -132,7 +125,7 @@ public class PathRenderer {
                 } else {
                     world.addParticle(trailEffect, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
                 }
-                distanceSinceLastMarker = 0.0; // Reset distance
+                distanceSinceLastMarker = 0.0;
             }
             lastPoint = currentPoint;
         }

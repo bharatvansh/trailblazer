@@ -1,33 +1,32 @@
 package com.trailblazer.api;
 
 /**
- * Shared protocol constants between client mod and server plugin.
- * Keeping them in the API ensures both sides compile against the same numbers.
+ * Protocol constants shared between client and server.
  */
 public final class Protocol {
 
     private Protocol() {}
 
-    /** Increment when packet formats / semantics change incompatibly. */
+    /** Protocol version for compatibility checks. */
     public static final int PROTOCOL_VERSION = 1;
 
-    /** Capability bitmask flags advertised by server (and optionally client). */
+    /** Server capability flags. */
     public static final class Capability {
         private Capability() {}
-        /** Supports live incremental path updates (vs only full sync). */
+        /** Live incremental updates. */
         public static final int LIVE_UPDATES = 1 << 0;
-        /** Server provides shared persistent storage for paths. */
+        /** Shared server storage. */
         public static final int SHARED_STORAGE = 1 << 1;
-        /** Permission/quota enforcement active. */
+        /** Permission enforcement. */
         public static final int PERMISSIONS = 1 << 2;
-        /** Server canonicalizes / assigns colors (non-client guessed). */
+        /** Server assigns canonical colors. */
         public static final int COLOR_CANONICAL = 1 << 3;
-        /** Server may thin / decimate paths for performance. */
+        /** Server path optimization. */
         public static final int SERVER_THINNING = 1 << 4;
-        /** Multi-dimension filtering supported in queries / sync. */
+        /** Multi-dimension support. */
         public static final int MULTI_DIMENSION_FILTER = 1 << 5;
     }
 
-    /** Utility to test a bit. */
+    /** Tests if a capability flag is set. */
     public static boolean has(int mask, int flag) { return (mask & flag) != 0; }
 }

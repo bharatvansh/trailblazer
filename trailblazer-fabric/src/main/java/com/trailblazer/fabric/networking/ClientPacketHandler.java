@@ -28,7 +28,6 @@ public class ClientPacketHandler {
     private static final Gson GSON = new Gson();
 
     public static void registerS2CPackets(ClientPathManager pathManager) {
-        // THE FIX: Explicitly define the types for all lambda parameters.
         ClientPlayNetworking.registerGlobalReceiver(PathDataSyncPayload.ID, (payload, context) -> {
             String json = payload.json();
 
@@ -48,9 +47,7 @@ public class ClientPacketHandler {
             context.client().execute(() -> pathManager.applyServerSync(receivedPaths));
         });
 
-        // Register a listener for our new "hide all" signal.
         ClientPlayNetworking.registerGlobalReceiver(HideAllPathsPayload.ID, (payload, context) -> {
-            // This is a simple signal, so we just need to execute the action.
             context.client().execute(pathManager::hideAllPaths);
         });
 
@@ -73,7 +70,6 @@ public class ClientPacketHandler {
         ClientPlayNetworking.registerGlobalReceiver(StopLivePathPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 pathManager.stopLivePath();
-                // After recording stops, request a fresh sync so newly saved path appears immediately
                 try {
                     if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
                             com.trailblazer.fabric.networking.payload.c2s.HandshakePayload.ID)) {

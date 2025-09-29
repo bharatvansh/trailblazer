@@ -4,9 +4,7 @@ import java.io.Serializable;
 import java.util.Objects;
 
 /**
- * A simple, serializable 3D vector class to store coordinates.
- * This class is part of the shared API to ensure compatibility between the
- * server plugin and the client mod without introducing external dependencies.
+ * Immutable 3D vector for coordinate storage.
  */
 public class Vector3d implements Serializable {
     private static final long serialVersionUID = 1L;

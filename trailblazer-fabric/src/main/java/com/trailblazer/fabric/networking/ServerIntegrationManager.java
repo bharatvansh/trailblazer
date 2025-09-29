@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 public class ServerIntegrationManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("trailblazer-serverint");
     private final AtomicBoolean serverSupported = new AtomicBoolean(false);
-    private volatile int capabilityMask = 0; // future use
+    private volatile int capabilityMask = 0;
 
     public void registerLifecycle() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
