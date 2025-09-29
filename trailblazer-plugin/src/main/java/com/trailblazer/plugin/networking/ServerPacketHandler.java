@@ -72,11 +72,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             moddedPlayers.add(player.getUniqueId());
             plugin.getLogger().info("Received HandshakePayload from " + player.getName());
 
-            // --- NEW LOGIC: Proactive Data Sync ---
-            // Immediately send all saved paths to the client upon successful handshake.
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 List<PathData> allPaths = dataManager.loadPaths(player.getUniqueId());
-                // Independence filter: if player owns a copy whose origin matches a shared path, suppress the shared original.
                 if (!allPaths.isEmpty()) {
                     java.util.Set<java.util.UUID> ownedOrigins = new java.util.HashSet<>();
                     for (PathData p : allPaths) {
@@ -94,7 +91,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                     });
                 }
             });
-            // --- END NEW LOGIC ---
             return;
         }
 
@@ -173,10 +169,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         player.sendPluginMessage(plugin, PathDataSyncPayload.CHANNEL, payload.toBytes());
     }
 
-    // The onPlayerJoin event is now only used for cleanup, not detection.
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        // Optional: Ensure no lingering state if a player rejoins quickly.
         moddedPlayers.remove(event.getPlayer().getUniqueId());
     }
 
@@ -184,7 +178,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         moddedPlayers.remove(player.getUniqueId());
-        // Clean up any active recording session to prevent "ghost" recordings.
     }
 
     public boolean isModdedPlayer(Player player) {
@@ -197,7 +190,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
      */
     public void sendHideAllPaths(Player player) {
         if (!isModdedPlayer(player)) return;
-        // This packet has no data, but the client expects to read at least one byte.
         player.sendPluginMessage(plugin, HideAllPathsPayload.CHANNEL, new HideAllPathsPayload().toBytes());
     }
 
@@ -276,7 +268,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
                         Player targetPlayer = plugin.getServer().getPlayer(targetPlayerId);
                         boolean targetIsModded = targetPlayer != null && targetPlayer.isOnline() && isModdedPlayer(targetPlayer);
-                        if (!targetIsModded) { // Keep linkage only for unmodded players (fallback rendering updates)
+                        if (!targetIsModded) { 
                             if (!path.getSharedWith().contains(targetPlayerId)) {
                                 path.getSharedWith().add(targetPlayerId);
                                 updated = true;

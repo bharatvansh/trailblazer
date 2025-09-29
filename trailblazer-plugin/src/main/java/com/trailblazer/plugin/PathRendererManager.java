@@ -191,7 +191,7 @@ public class PathRendererManager {
                         return world;
                     }
                 } catch (NoSuchMethodError ignored) {
-                    // Method unavailable; fall through to name-based fallback below.
+                    
                 }
                 world = plugin.getServer().getWorld(key.getKey());
                 if (world != null) {
