@@ -411,15 +411,16 @@ public class PathCommand implements CommandExecutor {
                         continue;
                     }
 
-                    if (!path.getSharedWith().contains(targetPlayer.getUniqueId())) {
-                        path.getSharedWith().add(targetPlayer.getUniqueId());
-                        updatedOwnerRecord = true;
+                    boolean targetIsModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
+                    if (!targetIsModded) { // Preserve linkage only for unmodded targets (fallback server rendering)
+                        if (!path.getSharedWith().contains(targetPlayer.getUniqueId())) {
+                            path.getSharedWith().add(targetPlayer.getUniqueId());
+                            updatedOwnerRecord = true;
+                        }
                     }
 
                     PathData sharedCopy = result.getPath();
-                    boolean isTargetModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
-
-                    if (isTargetModded) {
+                    if (targetIsModded) {
                         plugin.getServerPacketHandler().sendSharePath(targetPlayer, sharedCopy);
                         targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
                     } else {

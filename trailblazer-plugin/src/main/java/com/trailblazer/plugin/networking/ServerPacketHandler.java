@@ -76,8 +76,18 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             // Immediately send all saved paths to the client upon successful handshake.
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 List<PathData> allPaths = dataManager.loadPaths(player.getUniqueId());
+                // Independence filter: if player owns a copy whose origin matches a shared path, suppress the shared original.
                 if (!allPaths.isEmpty()) {
-                    // We must send the packet back on the main server thread.
+                    java.util.Set<java.util.UUID> ownedOrigins = new java.util.HashSet<>();
+                    for (PathData p : allPaths) {
+                        if (p.getOwnerUUID().equals(player.getUniqueId())) {
+                            java.util.UUID origin = p.getOriginPathId() != null ? p.getOriginPathId() : p.getPathId();
+                            ownedOrigins.add(origin);
+                        }
+                    }
+                    allPaths.removeIf(p -> !p.getOwnerUUID().equals(player.getUniqueId()) && ownedOrigins.contains(p.getPathId()));
+                }
+                if (!allPaths.isEmpty()) {
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         sendAllPathData(player, allPaths);
                         TrailblazerPlugin.getPluginLogger().info("Synced " + allPaths.size() + " existing path(s) to " + player.getName());
@@ -264,15 +274,18 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                             continue;
                         }
 
-                        if (!path.getSharedWith().contains(targetPlayerId)) {
-                            path.getSharedWith().add(targetPlayerId);
-                            updated = true;
+                        Player targetPlayer = plugin.getServer().getPlayer(targetPlayerId);
+                        boolean targetIsModded = targetPlayer != null && targetPlayer.isOnline() && isModdedPlayer(targetPlayer);
+                        if (!targetIsModded) { // Keep linkage only for unmodded players (fallback rendering updates)
+                            if (!path.getSharedWith().contains(targetPlayerId)) {
+                                path.getSharedWith().add(targetPlayerId);
+                                updated = true;
+                            }
                         }
 
                         PathData sharedCopy = result.getPath();
-                        Player targetPlayer = plugin.getServer().getPlayer(targetPlayerId);
                         if (targetPlayer != null && targetPlayer.isOnline()) {
-                            if (isModdedPlayer(targetPlayer)) {
+                            if (targetIsModded) {
                                 sendSharePath(targetPlayer, sharedCopy);
                             } else {
                                 plugin.getPathRendererManager().startRendering(targetPlayer, sharedCopy);

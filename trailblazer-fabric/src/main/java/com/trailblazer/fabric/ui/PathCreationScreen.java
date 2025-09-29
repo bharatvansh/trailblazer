@@ -2,6 +2,9 @@ package com.trailblazer.fabric.ui;
 
 import com.trailblazer.api.PathData;
 import com.trailblazer.fabric.ClientPathManager;
+import com.trailblazer.fabric.ClientPathManager.PathOrigin;
+import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -100,6 +103,12 @@ public class PathCreationScreen extends Screen {
                     editingPath.setColorArgb(workingColor);
                 }
                 onSave.accept(editingPath);
+                // If this path is server-owned, propagate metadata changes to server.
+                PathOrigin origin = pathManager.getPathOrigin(editingPath.getPathId());
+                if (origin == PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(UpdatePathMetadataPayload.ID)) {
+                    int colorToSend = editingPath.getColorArgb();
+                    ClientPlayNetworking.send(new UpdatePathMetadataPayload(editingPath.getPathId(), editingPath.getPathName(), colorToSend));
+                }
             } else {
                 UUID ownerUuid = pathManager.getLocalPlayerUuid() != null ? pathManager.getLocalPlayerUuid() : UUID.randomUUID();
                 String ownerName = MinecraftClient.getInstance().player != null ? MinecraftClient.getInstance().player.getGameProfile().getName() : "Player";
