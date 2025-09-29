@@ -1,7 +1,6 @@
 package com.trailblazer.plugin.commands;
 
 import com.trailblazer.plugin.PathDataManager;
-import com.trailblazer.plugin.rendering.RenderMode;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
@@ -10,19 +9,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class PathTabCompleter implements TabCompleter {
 
     private final PathDataManager pathDataManager;
-    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "list", "delete", "rename", "rendermode", "share", "color", "info", "record");
+    // Include 'help' so tab completion suggests it for server-side users as well
+    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "list", "delete", "rename", "rendermode", "share", "color", "info", "record", "help");
     private static final List<String> RECORD_SUB = List.of("start","stop","cancel","status");
-    // This will now correctly reflect the new RenderMode names
-    private static final List<String> RENDER_MODES = Arrays.stream(RenderMode.values())
-            .map(Enum::name)
-            .collect(Collectors.toList());
 
     public PathTabCompleter(PathDataManager pathDataManager) {
         this.pathDataManager = pathDataManager;
@@ -55,6 +50,7 @@ public class PathTabCompleter implements TabCompleter {
         if (args.length == 2) {
             switch (args[0].toLowerCase()) {
                 case "view":
+                case "hide":
                 case "delete":
                 case "rename":
                 case "info":
@@ -63,7 +59,7 @@ public class PathTabCompleter implements TabCompleter {
                             .collect(Collectors.toList());
                     return StringUtil.copyPartialMatches(args[1], pathNames, new ArrayList<>());
                 case "rendermode":
-                    return StringUtil.copyPartialMatches(args[1], RENDER_MODES, new ArrayList<>());
+                    return StringUtil.copyPartialMatches(args[1], List.of("trail", "markers", "arrows"), new ArrayList<>());
                 case "color":
                     List<String> colorPathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
                             .map(com.trailblazer.api.PathData::getPathName)
