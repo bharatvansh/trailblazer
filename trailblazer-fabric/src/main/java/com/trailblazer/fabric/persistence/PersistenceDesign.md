@@ -33,6 +33,3 @@ Safety:
 Thinning (point limit enforcement):
   - If path exceeds maxPointsPerPath: create a new list keeping every k-th point (k grows until size within limit), always keep first and last.
 
-Export / Import:
-  - Export: write selected path JSON to game directory /trailblazer_export/<name>_<id>.json
-  - Import: read JSON from chosen file and assign new pathId to avoid collisions unless explicitly matching.

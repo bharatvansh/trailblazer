@@ -60,7 +60,7 @@ public class TrailblazerFabricClient implements ClientModInitializer {
         if (config.recordingOverlayEnabled) {
             net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new RecordingOverlay(clientPathManager));
         }
-        // /tblocal removed; unified under /trailblazer only.
+
         registerWorldLifecycle();
         registerClientTick();
 
