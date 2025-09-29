@@ -35,20 +35,21 @@ public class PathTabCompleter implements TabCompleter {
         }
 
         if (args.length == 1) {
-            List<String> base = new ArrayList<>(SUB_COMMANDS);
+            List<String> suggestions;
             try {
                 var plugin = com.trailblazer.plugin.TrailblazerPlugin.getInstance();
                 boolean modded = plugin.getServerPacketHandler().isModdedPlayer(player);
                 if (modded) {
-                    // Remove server-side display related commands that client mod supersedes
-                    base.remove("record");
-                    base.remove("view");
-                    base.remove("hide");
-                    base.remove("rendermode");
-                    base.remove("list");
+                    // For modded players, provide the client command list + server 'share' and 'color'.
+                    suggestions = new ArrayList<>(List.of("record", "view", "hide", "rendermode", "list", "info", "delete", "rename", "help", "share", "color"));
+                } else {
+                    // For unmodded players, provide the full server command list.
+                    suggestions = new ArrayList<>(SUB_COMMANDS);
                 }
-            } catch (Exception ignored) {}
-            return StringUtil.copyPartialMatches(args[0], base, new ArrayList<>());
+            } catch (Exception ignored) {
+                suggestions = new ArrayList<>(SUB_COMMANDS);
+            }
+            return StringUtil.copyPartialMatches(args[0], suggestions, new ArrayList<>());
         }
 
         if (args.length == 2) {
