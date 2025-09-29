@@ -24,11 +24,24 @@ public enum RenderMode {
     DIRECTIONAL_ARROWS;
 
     public static Optional<RenderMode> fromString(String name) {
-        for (RenderMode mode : values()) {
-            if (mode.name().equalsIgnoreCase(name)) {
-                return Optional.of(mode);
+        if (name == null) return Optional.empty();
+        String n = name.trim().toLowerCase();
+        // Accept common aliases for backward compatibility and client-friendly inputs
+        return switch (n) {
+            case "trail", "particle", "particles", "particle_trail" -> Optional.of(PARTICLE_TRAIL);
+            case "markers", "marker", "spaced_markers" -> Optional.of(SPACED_MARKERS);
+            case "arrows", "arrow", "directional_arrows" -> Optional.of(DIRECTIONAL_ARROWS);
+            default -> {
+                // Fallback to matching enum name
+                Optional<RenderMode> found = Optional.empty();
+                for (RenderMode mode : values()) {
+                    if (mode.name().equalsIgnoreCase(name)) {
+                        found = Optional.of(mode);
+                        break;
+                    }
+                }
+                yield found;
             }
-        }
-        return Optional.empty();
+        };
     }
 }

@@ -353,8 +353,8 @@ public class PathCommand implements CommandExecutor {
         if (args.length < 2) {
             RenderMode currentMode = renderSettingsManager.getRenderMode(player);
             player.sendMessage(Component.text("Your current render mode is " + currentMode.name() + ".", NamedTextColor.GRAY));
-            // Updated usage message
-            player.sendMessage(Component.text("Usage: /path rendermode <PARTICLE_TRAIL | SPACED_MARKERS | DIRECTIONAL_ARROWS>", NamedTextColor.RED));
+            // Show the three canonical, client-friendly aliases for consistency with the client commands
+            player.sendMessage(Component.text("Usage: /path rendermode <trail | markers | arrows>", NamedTextColor.RED));
             return;
         }
 

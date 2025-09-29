@@ -124,7 +124,11 @@ public final class TrailblazerCommand {
     );
 
     private static CompletableFuture<Suggestions> suggestRenderModes(SuggestionsBuilder builder) {
-        MODE_ALIASES.keySet().stream().sorted().distinct().forEach(builder::suggest);
+        // Only show the three canonical modes in suggestions to avoid clutter.
+        // Aliases remain accepted via MODE_ALIASES lookup in setRenderMode.
+        builder.suggest("trail");
+        builder.suggest("markers");
+        builder.suggest("arrows");
         return builder.buildFuture();
     }
 

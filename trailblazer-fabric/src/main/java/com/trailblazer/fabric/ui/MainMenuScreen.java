@@ -9,6 +9,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -59,7 +60,7 @@ public class MainMenuScreen extends Screen {
         }).dimensions(this.width - 105, 5, 100, 20).build();
         this.addDrawableChild(settingsButton);
 
-        recordButton = ButtonWidget.builder(Text.of(getRecordingLabel()), button -> {
+        recordButton = ButtonWidget.builder(getRecordingText(), button -> {
             boolean isRecording = pathManager.isRecording();
 
             if (isRecording) {
@@ -68,7 +69,7 @@ public class MainMenuScreen extends Screen {
                 pathManager.startRecordingLocal();
             }
 
-            recordButton.setMessage(Text.of(getRecordingLabel()));
+            recordButton.setMessage(getRecordingText());
             if (!isRecording) {
                 this.client.setScreen(null);
             }
@@ -112,7 +113,7 @@ public class MainMenuScreen extends Screen {
         lastPathCount = paths.size();
         // Also refresh record button label in case state changed externally
         if (recordButton != null) {
-            recordButton.setMessage(Text.of(getRecordingLabel()));
+            recordButton.setMessage(getRecordingText());
         }
         refreshTabState();
     }
@@ -126,8 +127,11 @@ public class MainMenuScreen extends Screen {
         }
     }
 
-    private String getRecordingLabel() {
-        return pathManager.isRecording() ? "Stop Recording" : "Start Recording";
+    private Text getRecordingText() {
+        if (pathManager.isRecording()) {
+            return Text.literal("Stop Recording").formatted(Formatting.RED);
+        }
+        return Text.literal("Start Recording");
     }
 
     @Override
@@ -147,9 +151,9 @@ public class MainMenuScreen extends Screen {
         }
         // Ensure label stays in sync with possible keybind toggles
         if (recordButton != null) {
-            String desired = getRecordingLabel();
-            if (!recordButton.getMessage().getString().equals(desired)) {
-                recordButton.setMessage(Text.of(desired));
+            Text desired = getRecordingText();
+            if (!recordButton.getMessage().getString().equals(desired.getString())) {
+                recordButton.setMessage(desired);
             }
         }
         refreshTabState();

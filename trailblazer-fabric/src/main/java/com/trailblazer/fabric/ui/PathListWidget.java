@@ -207,7 +207,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             this.editButton = ButtonWidget.builder(Text.of("Edit"), button -> {
                 MinecraftClient.getInstance().setScreen(new PathCreationScreen(pathManager, updatedPath -> {
                     pathManager.onPathUpdated(updatedPath);
-                }, path));
+                }, path, MinecraftClient.getInstance().currentScreen));
             }).build();
             // Permit editing (rename / recolor) for server-owned paths as well; only server-shared copies remain view-only.
             if (!(origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_OWNED)) {

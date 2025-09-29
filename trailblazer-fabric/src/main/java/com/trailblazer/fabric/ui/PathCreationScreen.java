@@ -20,6 +20,7 @@ public class PathCreationScreen extends Screen {
     private final ClientPathManager pathManager;
     private final Consumer<PathData> onSave;
     private final PathData editingPath;
+    private Screen parentScreen = null;
     private TextFieldWidget nameField;
     private ButtonWidget saveButton;
     private ButtonWidget cancelButton;
@@ -28,7 +29,7 @@ public class PathCreationScreen extends Screen {
     private int workingColor = 0; // 0 means unset -> will default
 
     public PathCreationScreen(ClientPathManager pathManager, Consumer<PathData> onSave) {
-        this(pathManager, onSave, null);
+        this(pathManager, onSave, (PathData) null);
     }
 
     public PathCreationScreen(ClientPathManager pathManager, Consumer<PathData> onSave, PathData editingPath) {
@@ -36,6 +37,15 @@ public class PathCreationScreen extends Screen {
         this.pathManager = pathManager;
         this.onSave = onSave;
         this.editingPath = editingPath;
+    }
+
+    /**
+     * Parent-aware constructor. When parent is non-null, Save/Cancel will return to the parent screen
+     * instead of closing the UI entirely.
+     */
+    public PathCreationScreen(ClientPathManager pathManager, Consumer<PathData> onSave, PathData editingPath, Screen parent) {
+        this(pathManager, onSave, editingPath);
+        this.parentScreen = parent;
     }
 
     @Override
@@ -120,11 +130,20 @@ public class PathCreationScreen extends Screen {
                 }
                 onSave.accept(newPath);
             }
-            this.client.setScreen(null);
+            // If a parent screen was supplied, return to it; otherwise close UI
+            if (this.parentScreen != null) {
+                this.client.setScreen(this.parentScreen);
+            } else {
+                this.client.setScreen(null);
+            }
         }).dimensions(this.width / 2 - buttonWidth - 5, buttonY, buttonWidth, buttonHeight).build();
 
         cancelButton = ButtonWidget.builder(Text.of("Cancel"), button -> {
-            this.client.setScreen(null);
+            if (this.parentScreen != null) {
+                this.client.setScreen(this.parentScreen);
+            } else {
+                this.client.setScreen(null);
+            }
         }).dimensions(this.width / 2 + 5, buttonY, buttonWidth, buttonHeight).build();
 
         this.addDrawableChild(saveButton);
