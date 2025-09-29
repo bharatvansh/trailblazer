@@ -18,8 +18,7 @@ import com.trailblazer.api.Vector3d;
 import com.trailblazer.fabric.persistence.PathPersistenceManager;
 
 /**
- * Manages path data on the client side.
- * For now, it's a simple in-memory store.
+ * Manages client-side path storage and recording.
  */
 public class ClientPathManager {
     public enum PathOrigin {
@@ -28,23 +27,16 @@ public class ClientPathManager {
         SERVER_OWNED,
         SERVER_SHARED
     }
-    // A map to hold all of the player's own paths.
     private final Map<UUID, PathData> myPaths = new HashMap<>();
-    // A map to hold all paths shared with the player.
     private final Map<UUID, PathData> sharedPaths = new HashMap<>();
-    // Tracks where each path came from.
     private final Map<UUID, PathOrigin> pathOrigins = new HashMap<>();
-    // A set to track which paths should currently be visible.
     private final Set<UUID> visiblePaths = new HashSet<>();
-    // A special field to hold a path currently being streamed by server (live preview)
     private PathData livePath = null;
-    // Local recording path (client-originated) separate from server live path
     private PathData localRecording = null;
-    // Tracks whether a recording session is currently active (local)
     private boolean recording = false;
     private Vector3d lastCapturedPoint = null;
-    private PathPersistenceManager persistence; // injected
-    private int maxPointsPerPath = 5000; // updated from config
+    private PathPersistenceManager persistence;
+    private int maxPointsPerPath = 5000;
     private UUID localPlayerUuid;
     private int nextPathNumber = 1;
 
@@ -362,7 +354,6 @@ public class ClientPathManager {
         recalculateNextPathNumber();
     }
 
-    // --- FOR TESTING ---
     public void loadDummyPath() {
         UUID dummyId = UUID.randomUUID();
         List<Vector3d> points = Arrays.asList(

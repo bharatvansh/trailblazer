@@ -19,7 +19,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Handles persistence of local paths for singleplayer or plugin-less servers.
+ * Handles local path persistence for singleplayer and plugin-less servers.
  */
 public class PathPersistenceManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("trailblazer-persist");
@@ -28,7 +28,7 @@ public class PathPersistenceManager {
     private final ClientPathManager pathManager;
     private final TrailblazerClientConfig config;
 
-    private Path worldDir; // base directory for current world (paths folder)
+    private Path worldDir;
     private final Map<UUID, Boolean> dirty = new ConcurrentHashMap<>();
 
     private static final String INDEX_FILE = "index.json";
@@ -54,7 +54,6 @@ public class PathPersistenceManager {
     /** Called on world join after worldDir set */
     public void loadAll() {
         if (worldDir == null) return;
-        // read index
         Path index = worldDir.resolve(INDEX_FILE);
         Set<UUID> listed = new HashSet<>();
         if (Files.isRegularFile(index)) {
@@ -72,12 +71,10 @@ public class PathPersistenceManager {
                 LOGGER.error("Failed reading index.json", ex);
             }
         }
-        // pick up orphans
         try {
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(worldDir, "*.json")) {
                 for (Path p : ds) {
                     if (p.getFileName().toString().equals(INDEX_FILE)) continue;
-                    // parse uuid from filename ( <uuid>.json )
                     String base = p.getFileName().toString();
                     if (base.endsWith(".json")) {
                         String uuidPart = base.substring(0, base.length()-5);
@@ -93,20 +90,13 @@ public class PathPersistenceManager {
         } catch (IOException e) {
             LOGGER.error("Error scanning path directory", e);
         }
-        // After loading all local path files, make sure the client manager updates
-        // its auto-name counter so future auto-named paths won't collide with loaded ones.
-        try {
-            pathManager.recalculateNextPathNumber();
-        } catch (Exception e) {
-            LOGGER.warn("Failed to recalculate next path number after loading paths", e);
-        }
+        pathManager.recalculateNextPathNumber();
     }
 
     private void loadSingle(UUID pathId, Path file) {
         try (BufferedReader r = Files.newBufferedReader(file)) {
             PathFileRecord rec = GSON.fromJson(r, PathFileRecord.class);
             if (rec == null) return;
-            // basic validation
             if (!pathId.equals(rec.pathId)) return;
             List<Vector3d> pts = rec.points != null ? rec.points : List.of();
             PathData data = new PathData(rec.pathId, rec.name != null? rec.name : "Path", rec.ownerUUID != null? rec.ownerUUID : UUID.randomUUID(),
@@ -235,7 +225,6 @@ public class PathPersistenceManager {
         for (int i = 0; i < pts.size(); i += keepEvery) {
             thinned.add(pts.get(i));
         }
-        // ensure last point retained
         if (!thinned.get(thinned.size()-1).equals(pts.get(pts.size()-1))) {
             thinned.add(pts.get(pts.size()-1));
         }
@@ -245,7 +234,6 @@ public class PathPersistenceManager {
         return true;
     }
 
-    // --- Data holder classes ---
     private static class IndexEntry {
         UUID pathId;
         String fileName;
@@ -254,7 +242,7 @@ public class PathPersistenceManager {
 
     private static class PathFileRecord {
     @SuppressWarnings("unused")
-    int schemaVersion = 1; // retained for forward compatibility
+    int schemaVersion = 1;
         UUID pathId;
         String name;
         UUID ownerUUID;
