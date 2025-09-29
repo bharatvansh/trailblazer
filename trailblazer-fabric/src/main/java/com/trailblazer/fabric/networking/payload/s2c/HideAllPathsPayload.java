@@ -18,7 +18,6 @@ public record HideAllPathsPayload() implements CustomPayload {
     public static final PacketCodec<RegistryByteBuf, HideAllPathsPayload> CODEC = new PacketCodec<RegistryByteBuf, HideAllPathsPayload>() {
         @Override
         public HideAllPathsPayload decode(RegistryByteBuf buf) {
-            // The server sends a single byte for legacy reasons. We must read it.
             if (buf.readableBytes() > 0) {
                 buf.readByte();
             }
@@ -27,7 +26,6 @@ public record HideAllPathsPayload() implements CustomPayload {
 
         @Override
         public void encode(RegistryByteBuf buf, HideAllPathsPayload value) {
-            // Nothing to write.
         }
     };
 

@@ -11,26 +11,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(EntryListWidget.class)
 public abstract class EntryListWidgetMixin {
 
-    // Cancel the built-in menu list background (both in-world and menu variants)
     @Inject(method = "drawMenuListBackground(Lnet/minecraft/client/gui/DrawContext;)V", at = @At("HEAD"), cancellable = true)
     private void trailblazer$cancelMenuListBackground(DrawContext context, CallbackInfo ci) {
         com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Trailblazer mixin: cancel EntryListWidget.drawMenuListBackground");
         ci.cancel();
     }
 
-    // Optional: some mappings use a separate method for in-world background
     @Inject(method = "drawInWorldMenuListBackground(Lnet/minecraft/client/gui/DrawContext;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private void trailblazer$cancelInWorldBackground(DrawContext context, CallbackInfo ci) {
         com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Trailblazer mixin: cancel EntryListWidget.drawInWorldMenuListBackground");
         ci.cancel();
     }
 
-    // Some versions tint via decorations pass; cancel that too to avoid overlays
     @Inject(method = "renderDecorations(Lnet/minecraft/client/gui/DrawContext;II)V", at = @At("HEAD"), cancellable = true)
     private void trailblazer$cancelDecorations(DrawContext context, int mouseX, int mouseY, CallbackInfo ci) {
-        // Do not cancel completely; the decorations include scrollbars and selection highlight.
-        // If canceling disrupts UX, comment out this line. For debugging transparency, leave off.
-        // ci.cancel();
     }
 
     @Inject(method = "renderWidget(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At("HEAD"))
@@ -38,7 +32,6 @@ public abstract class EntryListWidgetMixin {
         com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("Trailblazer mixin: EntryListWidget.renderWidget");
     }
 
-    // Robustly remove the vanilla background: redirect the invocation inside renderWidget
     @Redirect(
         method = "renderWidget(Lnet/minecraft/client/gui/DrawContext;IIF)V",
         at = @At(
@@ -47,8 +40,6 @@ public abstract class EntryListWidgetMixin {
         )
     )
     private void trailblazer$redirectDrawMenuListBackground(EntryListWidget instance, DrawContext context) {
-        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Trailblazer mixin: redirected EntryListWidget.drawMenuListBackground -> no-op");
-        // no-op
     }
 
     @Redirect(
@@ -61,7 +52,5 @@ public abstract class EntryListWidgetMixin {
         require = 0
     )
     private void trailblazer$redirectDrawInWorldMenuListBackground(EntryListWidget instance, DrawContext context) {
-        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Trailblazer mixin: redirected EntryListWidget.drawInWorldMenuListBackground -> no-op");
-        // no-op
     }
 }
