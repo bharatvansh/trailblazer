@@ -26,7 +26,7 @@ public class PathCreationScreen extends Screen {
     private ButtonWidget cancelButton;
     private ButtonWidget cycleColorButton;
     private TextFieldWidget hexColorField;
-    private int workingColor = 0; // 0 means unset -> will default
+    private int workingColor = 0;
 
     public PathCreationScreen(ClientPathManager pathManager, Consumer<PathData> onSave) {
         this(pathManager, onSave, (PathData) null);
@@ -67,7 +67,6 @@ public class PathCreationScreen extends Screen {
         int buttonHeight = 20;
         int buttonY = fieldY + fieldHeight + 10;
 
-        // Color cycle button
         cycleColorButton = ButtonWidget.builder(Text.of(colorButtonLabel()), button -> {
             java.util.List<Integer> palette = com.trailblazer.api.PathColors.palette();
             if (workingColor == 0) {
@@ -100,7 +99,6 @@ public class PathCreationScreen extends Screen {
                 name = "New Path " + System.currentTimeMillis();
             }
 
-            // Parse hex field if user modified
             String hex = hexColorField.getText();
             java.util.Optional<Integer> parsed = com.trailblazer.api.PathColors.parse(hex);
             if (parsed.isPresent()) {
@@ -113,7 +111,6 @@ public class PathCreationScreen extends Screen {
                     editingPath.setColorArgb(workingColor);
                 }
                 onSave.accept(editingPath);
-                // If this path is server-owned, propagate metadata changes to server.
                 PathOrigin origin = pathManager.getPathOrigin(editingPath.getPathId());
                 if (origin == PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(UpdatePathMetadataPayload.ID)) {
                     int colorToSend = editingPath.getColorArgb();
@@ -130,7 +127,6 @@ public class PathCreationScreen extends Screen {
                 }
                 onSave.accept(newPath);
             }
-            // If a parent screen was supplied, return to it; otherwise close UI
             if (this.parentScreen != null) {
                 this.client.setScreen(this.parentScreen);
             } else {
