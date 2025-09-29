@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -30,6 +31,8 @@ import com.trailblazer.plugin.networking.payload.s2c.PathDeletedPayload;
 import com.trailblazer.plugin.networking.payload.s2c.SharePathPayload;
 import com.trailblazer.plugin.networking.payload.s2c.StopLivePathPayload;
 import com.trailblazer.plugin.networking.payload.s2c.PathActionResultPayload;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 public class ServerPacketHandler implements Listener, PluginMessageListener {
 
@@ -100,11 +103,15 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 List<PathData> paths = dataManager.loadPaths(player.getUniqueId());
                 boolean owned = paths.stream().anyMatch(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(player.getUniqueId()));
                 if (owned) {
-                    dataManager.deletePath(player.getUniqueId(), pathId);
-                    plugin.getServer().getScheduler().runTask(plugin, () -> {
-                        sendPathDeleted(player, pathId);
-                        sendActionResult(player, "delete", pathId, true, "Path deleted successfully.", null);
-                    });
+                    boolean removed = dataManager.deletePath(player.getUniqueId(), pathId);
+                    if (removed) {
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            sendPathDeleted(player, pathId);
+                            sendActionResult(player, "delete", pathId, true, "Path deleted successfully.", null);
+                        });
+                    } else {
+                        sendActionResult(player, "delete", pathId, false, "Failed to delete path.", null);
+                    }
                 } else {
                     sendActionResult(player, "delete", pathId, false, "You do not own this path.", null);
                 }
@@ -245,15 +252,57 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 .filter(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(sender.getUniqueId()))
                 .findFirst()
                 .ifPresentOrElse(path -> {
-                    path.getSharedWith().addAll(playerIds);
-                    dataManager.savePath(path);
+                    boolean updated = false;
+                    List<String> newlyShared = new ArrayList<>();
+                    List<String> alreadyHad = new ArrayList<>();
+
                     for (UUID targetPlayerId : playerIds) {
+                        String targetName = resolvePlayerName(targetPlayerId);
+                        PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetPlayerId, targetName);
+                        if (!result.wasCreated()) {
+                            alreadyHad.add(targetName);
+                            continue;
+                        }
+
+                        if (!path.getSharedWith().contains(targetPlayerId)) {
+                            path.getSharedWith().add(targetPlayerId);
+                            updated = true;
+                        }
+
+                        PathData sharedCopy = result.getPath();
                         Player targetPlayer = plugin.getServer().getPlayer(targetPlayerId);
                         if (targetPlayer != null && targetPlayer.isOnline()) {
-                            sendSharePath(targetPlayer, path);
+                            if (isModdedPlayer(targetPlayer)) {
+                                sendSharePath(targetPlayer, sharedCopy);
+                            } else {
+                                plugin.getPathRendererManager().startRendering(targetPlayer, sharedCopy);
+                                targetPlayer.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                                targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
+                            }
                         }
+                        newlyShared.add(targetName);
                     }
-                    sendActionResult(sender, "share", pathId, true, "Path shared successfully.", null);
+
+                    if (updated) {
+                        dataManager.savePath(path);
+                    }
+
+                    boolean success = !newlyShared.isEmpty();
+                    StringBuilder response = new StringBuilder();
+                    if (success) {
+                        response.append("Shared path with ").append(String.join(", ", newlyShared)).append('.');
+                    }
+                    if (!alreadyHad.isEmpty()) {
+                        if (response.length() > 0) {
+                            response.append(' ');
+                        }
+                        response.append(String.join(", ", alreadyHad)).append(" already had their own copy.");
+                    }
+                    if (response.length() == 0) {
+                        response.append("Selected players already have this path.");
+                    }
+
+                    sendActionResult(sender, "share", pathId, success, response.toString(), null);
                 }, () -> {
                     sendActionResult(sender, "share", pathId, false, "You do not own this path.", null);
                 });
@@ -355,5 +404,17 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         byte[] data = new byte[length];
         buffer.get(data);
         return new String(data, StandardCharsets.UTF_8);
+    }
+
+    private String resolvePlayerName(UUID playerId) {
+        Player online = plugin.getServer().getPlayer(playerId);
+        if (online != null) {
+            return online.getName();
+        }
+        OfflinePlayer offline = plugin.getServer().getOfflinePlayer(playerId);
+        if (offline != null && offline.getName() != null && !offline.getName().isBlank()) {
+            return offline.getName();
+        }
+        return "Player";
     }
 }

@@ -2,6 +2,7 @@ package com.trailblazer.plugin.commands;
 
 import com.trailblazer.api.PathData;
 import com.trailblazer.api.Vector3d;
+import com.trailblazer.plugin.PathDataManager;
 import com.trailblazer.plugin.TrailblazerPlugin;
 import com.trailblazer.plugin.rendering.PlayerRenderSettingsManager;
 import com.trailblazer.plugin.rendering.RenderMode;
@@ -13,10 +14,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class PathCommand implements CommandExecutor {
@@ -53,6 +54,9 @@ public class PathCommand implements CommandExecutor {
                 break;
             case "info":
                 handleInfo(player, args);
+                break;
+            case "list":
+                handleList(player);
                 break;
             case "delete":
                 handleDelete(player, args);
@@ -130,8 +134,7 @@ public class PathCommand implements CommandExecutor {
                     }
                     return;
                 }
-                var active = recManager.getActive(player.getUniqueId());
-                var saved = recManager.stopRecording(player, true);
+                PathData saved = recManager.stopRecording(player, true);
                 if (saved != null) {
                     player.sendMessage(Component.text("Saved path '" + saved.getPathName() + "' with " + saved.getPoints().size() + " points.", NamedTextColor.GREEN));
                     // For unmodded players we can auto-view using fallback renderer
@@ -259,12 +262,60 @@ public class PathCommand implements CommandExecutor {
             .findFirst();
 
         if (pathOpt.isPresent()) {
-            // A player can remove any path from their list, whether they own it or it was shared with them.
-            pathDataManager.deletePath(player.getUniqueId(), pathOpt.get().getPathId());
-            player.sendMessage(Component.text("Path '" + pathName + "' has been removed from your list.", NamedTextColor.GREEN));
+            PathData path = pathOpt.get();
+            boolean deleted = pathDataManager.deletePath(player.getUniqueId(), path.getPathId());
+            if (deleted) {
+                if (!plugin.getServerPacketHandler().isModdedPlayer(player)) {
+                    plugin.getPathRendererManager().stopRendering(player);
+                }
+                player.sendMessage(Component.text("Path '" + pathName + "' has been removed from your list.", NamedTextColor.GREEN));
+            } else {
+                player.sendMessage(Component.text("Failed to remove path '" + pathName + "'.", NamedTextColor.RED));
+            }
         } else {
             player.sendMessage(Component.text("Path '" + pathName + "' not found in your list.", NamedTextColor.RED));
         }
+    }
+
+    private void handleList(Player player) {
+        if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+            player.sendMessage(Component.text("Client mod handles listing paths. Use the Trailblazer UI.", NamedTextColor.YELLOW));
+            return;
+        }
+
+        List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
+        if (paths.isEmpty()) {
+            player.sendMessage(Component.text("You have no saved paths on this server.", NamedTextColor.GRAY));
+            return;
+        }
+
+        paths.sort((a, b) -> Long.compare(b.getCreationTimestamp(), a.getCreationTimestamp()));
+        player.sendMessage(Component.text("--- Saved Paths ---", NamedTextColor.GOLD));
+        int index = 1;
+        for (PathData path : paths) {
+            boolean owner = path.getOwnerUUID().equals(player.getUniqueId());
+            NamedTextColor nameColor = owner ? NamedTextColor.GREEN : NamedTextColor.AQUA;
+            Component line = Component.text(index++ + ". ", NamedTextColor.GRAY)
+                    .append(Component.text(path.getPathName(), nameColor))
+                    .append(Component.text(" (" + path.getPoints().size() + " points, " + friendlyDimension(path.getDimension()) + ")", NamedTextColor.DARK_GRAY));
+            if (!owner) {
+                line = line.append(Component.text(" [shared]", NamedTextColor.BLUE));
+            }
+            player.sendMessage(line);
+        }
+        player.sendMessage(Component.text("Use '/trailblazer view <name>' to show a path.", NamedTextColor.GRAY));
+    }
+
+    private String friendlyDimension(String dimensionId) {
+        if (dimensionId == null || dimensionId.isBlank()) {
+            return "unknown";
+        }
+        return switch (dimensionId) {
+            case "minecraft:overworld" -> "Overworld";
+            case "minecraft:the_nether" -> "Nether";
+            case "minecraft:the_end" -> "The End";
+            default -> dimensionId;
+        };
     }
 
     private void handleRename(Player player, String[] args) {
@@ -344,31 +395,53 @@ public class PathCommand implements CommandExecutor {
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
             if (path.getOwnerUUID().equals(player.getUniqueId())) {
-                List<UUID> sharedWithList = path.getSharedWith();
+                List<String> newShares = new ArrayList<>();
+                List<String> alreadyHad = new ArrayList<>();
+                boolean updatedOwnerRecord = false;
+
                 for (Player targetPlayer : targetPlayers) {
                     if (targetPlayer.getUniqueId().equals(player.getUniqueId())) {
                         player.sendMessage(Component.text("You cannot share a path with yourself.", NamedTextColor.YELLOW));
                         continue;
                     }
-                    if (!sharedWithList.contains(targetPlayer.getUniqueId())) {
-                        sharedWithList.add(targetPlayer.getUniqueId());
+
+                    PathDataManager.SharedCopyResult result = pathDataManager.ensureSharedCopy(path, targetPlayer.getUniqueId(), targetPlayer.getName());
+                    if (!result.wasCreated()) {
+                        alreadyHad.add(targetPlayer.getName());
+                        continue;
                     }
 
+                    if (!path.getSharedWith().contains(targetPlayer.getUniqueId())) {
+                        path.getSharedWith().add(targetPlayer.getUniqueId());
+                        updatedOwnerRecord = true;
+                    }
+
+                    PathData sharedCopy = result.getPath();
                     boolean isTargetModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
 
                     if (isTargetModded) {
-                        plugin.getServerPacketHandler().sendSharePath(targetPlayer, path);
-                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
+                        plugin.getServerPacketHandler().sendSharePath(targetPlayer, sharedCopy);
+                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
                     } else {
-                        // This is the fallback for players without the client mod.
-                        plugin.getPathRendererManager().startRendering(targetPlayer, path);
-                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + path.getPathName() + "' with you.", NamedTextColor.AQUA));
-                        targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + path.getPathName() + "' to see it again.", NamedTextColor.GRAY));
+                        plugin.getPathRendererManager().startRendering(targetPlayer, sharedCopy);
+                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                        targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
                     }
+
+                    newShares.add(targetPlayer.getName());
                 }
-                // The path data is updated with the new list of shared players.
-                pathDataManager.savePath(path);
-                player.sendMessage(Component.text("Path '" + pathName + "' shared with " + targetPlayers.stream().map(Player::getName).collect(Collectors.joining(", ")) + ".", NamedTextColor.GREEN));
+
+                if (updatedOwnerRecord) {
+                    pathDataManager.savePath(path);
+                }
+
+                if (!newShares.isEmpty()) {
+                    player.sendMessage(Component.text("Path '" + pathName + "' shared with " + String.join(", ", newShares) + ".", NamedTextColor.GREEN));
+                }
+
+                if (!alreadyHad.isEmpty()) {
+                    player.sendMessage(Component.text(String.join(", ", alreadyHad) + " already have their own copy of this path.", NamedTextColor.YELLOW));
+                }
             } else {
                 player.sendMessage(Component.text("You can only share paths that you own.", NamedTextColor.RED));
             }
@@ -381,6 +454,7 @@ public class PathCommand implements CommandExecutor {
         player.sendMessage(Component.text("--- Trailblazer Help ---", NamedTextColor.GOLD));
         player.sendMessage(Component.text("/trailblazer view <name>", NamedTextColor.YELLOW).append(Component.text(" - Show a path", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer hide", NamedTextColor.YELLOW).append(Component.text(" - Hide the current path", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer list", NamedTextColor.YELLOW).append(Component.text(" - List saved paths (server fallback)", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer delete <name>", NamedTextColor.YELLOW).append(Component.text(" - Delete a path you own", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path you own", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));

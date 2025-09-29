@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class PathTabCompleter implements TabCompleter {
 
     private final PathDataManager pathDataManager;
-    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "delete", "rename", "rendermode", "share", "color", "info", "record");
+    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "list", "delete", "rename", "rendermode", "share", "color", "info", "record");
     private static final List<String> RECORD_SUB = List.of("start","stop","cancel","status");
     // This will now correctly reflect the new RenderMode names
     private static final List<String> RENDER_MODES = Arrays.stream(RenderMode.values())
@@ -45,6 +45,7 @@ public class PathTabCompleter implements TabCompleter {
                     base.remove("view");
                     base.remove("hide");
                     base.remove("rendermode");
+                    base.remove("list");
                 }
             } catch (Exception ignored) {}
             return StringUtil.copyPartialMatches(args[0], base, new ArrayList<>());

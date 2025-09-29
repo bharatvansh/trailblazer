@@ -6,11 +6,14 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.trailblazer.api.PathData;
+import com.trailblazer.api.Vector3d;
 
 public class PathDataManager {
 
@@ -63,30 +66,116 @@ public class PathDataManager {
         return playerPaths;
     }
 
-    public void deletePath(UUID playerUUID, UUID pathId) {
+    public boolean deletePath(UUID playerUUID, UUID pathId) {
         File pathFile = new File(dataFolder, pathId.toString() + ".json");
         if (!pathFile.exists()) {
-            return;
+            return false;
         }
 
-        PathData pathData = null;
+        PathData pathData;
         try (FileReader reader = new FileReader(pathFile)) {
             pathData = gson.fromJson(reader, PathData.class);
         } catch (IOException e) {
             TrailblazerPlugin.getPluginLogger().severe("Failed to read path for deletion: " + pathId);
             e.printStackTrace();
-            return;
+            return false;
         }
 
-        if (pathData != null) {
-            if (pathData.getOwnerUUID().equals(playerUUID)) {
-                if (!pathFile.delete()) {
-                    TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
-                }
-            } else {
-                pathData.getSharedWith().remove(playerUUID);
-                savePath(pathData);
+        if (pathData == null) {
+            return false;
+        }
+
+        if (pathData.getOwnerUUID().equals(playerUUID)) {
+            if (!pathFile.delete()) {
+                TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
+                return false;
             }
+            return true;
+        }
+
+        boolean removed = pathData.getSharedWith().remove(playerUUID);
+        if (removed) {
+            savePath(pathData);
+        }
+        return removed;
+    }
+
+    public SharedCopyResult ensureSharedCopy(PathData source, UUID targetUuid, String targetName) {
+        if (source == null || targetUuid == null || targetName == null || targetName.isBlank()) {
+            throw new IllegalArgumentException("Source path, target UUID, and target name must be provided");
+        }
+        List<PathData> existing = loadPaths(targetUuid);
+        UUID originPathId = resolveOriginPathId(source);
+        Optional<PathData> alreadyOwned = existing.stream()
+                .filter(p -> targetUuid.equals(p.getOwnerUUID()))
+                .filter(p -> resolveOriginPathId(p).equals(originPathId))
+                .findFirst();
+        if (alreadyOwned.isPresent()) {
+            return new SharedCopyResult(alreadyOwned.get(), false);
+        }
+
+        String newName = uniquePathName(source.getPathName(), existing);
+        List<Vector3d> copiedPoints = new ArrayList<>(source.getPoints());
+        PathData copy = new PathData(UUID.randomUUID(), newName, targetUuid, targetName,
+                System.currentTimeMillis(), source.getDimension(), copiedPoints, source.getColorArgb());
+        copy.setOrigin(originPathId, resolveOriginOwner(source), resolveOriginOwnerName(source));
+        savePath(copy);
+        return new SharedCopyResult(copy, true);
+    }
+
+    private UUID resolveOriginPathId(PathData path) {
+        UUID origin = path.getOriginPathId();
+        return origin != null ? origin : path.getPathId();
+    }
+
+    private UUID resolveOriginOwner(PathData path) {
+        UUID owner = path.getOriginOwnerUUID();
+        return owner != null ? owner : path.getOwnerUUID();
+    }
+
+    private String resolveOriginOwnerName(PathData path) {
+        String originName = path.getOriginOwnerName();
+        if (originName != null && !originName.isBlank()) {
+            return originName;
+        }
+        return path.getOwnerName();
+    }
+
+    private String uniquePathName(String proposed, List<PathData> existing) {
+        String base = (proposed == null || proposed.isBlank()) ? "Shared Path" : proposed.trim();
+        String candidate = base;
+        int index = 2;
+        while (nameExists(existing, candidate)) {
+            candidate = base + " (" + index++ + ")";
+        }
+        return candidate;
+    }
+
+    private boolean nameExists(List<PathData> existing, String candidate) {
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        for (PathData path : existing) {
+            if (path.getPathName() != null && path.getPathName().toLowerCase(Locale.ROOT).equals(lower)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static class SharedCopyResult {
+        private final PathData path;
+        private final boolean created;
+
+        public SharedCopyResult(PathData path, boolean created) {
+            this.path = path;
+            this.created = created;
+        }
+
+        public PathData getPath() {
+            return path;
+        }
+
+        public boolean wasCreated() {
+            return created;
         }
     }
 
