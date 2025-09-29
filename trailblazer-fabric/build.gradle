@@ -1,10 +1,21 @@
-plugins {
-    // Using the version you confirmed works
-    id 'fabric-loom' version '1.10-SNAPSHOT'
+buildscript {
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath "net.fabricmc:fabric-loom:1.8.9"
+    }
 }
 
+plugins {
+    id 'java'
+}
+
+apply plugin: 'fabric-loom'
+
 version = rootProject.mod_version
-sourceCompatibility = JavaVersion.VERSION_21
+sourceCompatibility = JavaVersion.VERSION_17
 
 repositories {
     maven { url 'https://maven.fabricmc.net/' }
@@ -46,5 +57,5 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
-    it.options.release = 21
+    it.options.release = 17
 }

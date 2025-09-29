@@ -2,8 +2,8 @@
 // This is the crucial part that was missing.
 pluginManagement {
     repositories {
-        mavenCentral()
         gradlePluginPortal()
+        mavenCentral()
         // This is the line that fixes the error. It points to Fabric's repository.
         maven { url = 'https://maven.fabricmc.net/' }
     }
@@ -14,4 +14,5 @@ rootProject.name = 'Trailblazer'
 
 include 'trailblazer-api'
 include 'trailblazer-plugin'
-include 'trailblazer-fabric'
+// Temporarily disable fabric module due to network issues
+// include 'trailblazer-fabric'
