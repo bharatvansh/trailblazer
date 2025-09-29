@@ -1,45 +1,60 @@
-## Trailblazer – AI Coding Assistant Cheat‑Sheet
+## Trailblazer – AI Coding Assistant Instructions
 
-Essential project knowledge for fast, correct changes (keep <50 lines; update when behavior or structure shifts).
+Purpose: Help you make correct, idiomatic changes fast. This repo is a multi‑module Gradle (Java 21) project that ships both a Fabric client mod and a Paper server plugin sharing a small cross‑module API.
 
-### Architecture
-Modules: `trailblazer-api` (pure shared model: `PathData`, `Vector3d`, `Protocol`, `PathColors`), `trailblazer-plugin` (Paper bridge + fallback rendering + persistence + packet relay), `trailblazer-fabric` (client mod: recording, UI, rich rendering, local persistence). API must remain free of Bukkit/Fabric imports.
+### Module Overview
+- `trailblazer-api`: Pure Java (no MC deps). Shared immutable-ish data + protocol constants: `PathData`, `Vector3d`, `PathColors`, `Protocol`. Only put versioned, binary‑safe model logic here.
+- `trailblazer-fabric`: Client mod (Fabric Loom). Handles local recording, rendering, network handshakes, persistence, keybinds, UI, and path visibility.
+- `trailblazer-plugin`: Paper plugin. Persists player paths server‑side, runs controlled recording tasks, exposes `/trailblazer` command, and (eventually) handles packet relay.
 
-### Core Model
-`PathData`: immutable identity (`pathId`), mutable `pathName`, owner + origin lineage (for shared copies), `points` (ordered), `sharedWith`, lazy `colorArgb` (assign via `PathColors.assignColorFor(pathId)` if zero – keep for backward compatibility).
+### Core Domain: Path Lifecycle (Client)
+1. Recording starts via keybinding/command → `ClientPathManager.startRecordingLocal()` creates a `PathData` name `Path-N`, increments internal counter (`recalculateNextPathNumber()` ensures uniqueness scanning existing local/imported paths whose names start with `Path-`).
+2. Each client tick (`TrailblazerFabricClient.registerClientTick`) calls `ClientPathManager.tickRecording()`, appending a new `Vector3d` when moved ≥0.2 blocks (dist² ≥ 0.04).
+3. Autosave every `autosaveIntervalSeconds` (config) calls `PathPersistenceManager.saveDirty()`; individual modifications invoke `markDirty()` for local/imported (non server-backed) paths only.
+4. Thinning: If point count exceeds `maxPointsPerPath` (config), `PathPersistenceManager.enforcePointLimit()` keeps every Nth point + final point.
+5. Sharing/import: Imported or shared server paths tagged via `ClientPathManager.PathOrigin` control persistence + visibility defaults.
 
-### Networking
-Plugin messaging channels (server side: `ServerPacketHandler` constructor). Handshake (`HandshakePayload`) marks a player as modded → server async loads + syncs paths (`sendAllPathData`). Only send packets to modded players (`isModdedPlayer`). Bump `Protocol.PROTOCOL_VERSION` only on incompatible wire change.
+### Persistence (Client Singleplayer / No Plugin)
+- Stored under `<world>/trailblazer/paths/` or per‑server directory for remote servers without plugin.
+- One JSON per path (`<uuid>.json`) plus `index.json` listing known IDs (allows extra orphan detection scanning the directory).
+- Schema handled by inner `PathFileRecord` (see `PathPersistenceManager`): includes origin fields for provenance; color stored if non‑zero.
+- Modify persistence: keep atomic write pattern (write `.tmp`, then `Files.move` with `ATOMIC_MOVE`). Always update `index.json` after adds/removes.
 
-### Recording & Persistence
-Client: `ClientPathManager.tickRecording` + `PathPersistenceManager` (world/server‑scoped directory). Autosave interval in config JSON. Server fallback: `RecordingManager` scheduled every 2 ticks; user controls via `/trailblazer record <...>` in `PathCommand` (unmodded only guidance for modded players).
+### Networking & Protocol
+- `Protocol.PROTOCOL_VERSION` (currently 1) + `Protocol.Capability` bit flags (live updates, shared storage, permissions, canonical colors, server thinning, multidimension filter).
+- Client handshake: on join, `TrailblazerFabricClient.registerHandshakeSender()` sends `HandshakePayload` if channel available.
+- Live path updates: `ClientPathManager.updateLivePath()` maintains an ephemeral live path (UUID `00000000-0000-0000-0000-000000000001`). Stopping clears via `stopLivePath()`.
+- When adding a new packet/payload: define payload class in `fabric.networking.payload.[c2s|s2c]`, register in `TrailblazerNetworking.registerPayloadTypes()`, update server handler mirror in plugin (future), and if `PathData` shape changes, add new constructor variant preserving existing serialization assumptions.
 
-### Sharing Semantics
-Owner holds canonical copy; shared copies store origin IDs. Owner edits (rename/color) propagate by re‑sync (server sends updated list). Shared copies may be locally renamed by recipients (treat as alias only for them).
+### Rendering & Visual Settings
+- Renderer: `PathRenderer` (initialized in `TrailblazerFabricClient.onInitializeClient`) pulls visible paths via `ClientPathManager.getVisiblePaths()` and uses `RenderSettingsManager` + per‑player config.
+- Colors: `PathData.getColorArgb()` lazily assigns using `PathColors.assignColorFor(UUID)` if zero (hash → palette index). Respect this lazy contract; do not pre‑assign 0 unless you want auto‑palette.
+- Unique naming: `ClientPathManager.uniquePathName()` ensures imported/shared duplicates get suffix `(2)`, `(3)`, etc.
 
-### Rendering
-Client: `PathRenderer` + `RenderSettingsManager` + HUD (`RecordingOverlay`). Fallback (unmodded): server particle / marker via `PathRendererManager`. Add render mode → extend `RenderMode`, update server fallback + keybinding cycle (`KeyBindingManager`). Keep enum names stable (used in commands).
+### Configuration
+- Client JSON: `TrailblazerClientConfig` stored in Fabric config dir (`trailblazer-client.json`). Save via `config.save()` on disconnect. If adding a field: supply sensible default; backwards compatibility relies on Gson defaulting.
 
-### Commands Pattern
-Root `/trailblazer` (see `TrailblazerPlugin.registerCommands`). Manual switch in `PathCommand`; replicate style & early modded vs unmodded branch. Always validate ownership for destructive ops; shared copy rename only affects that copy.
+### Server Plugin Structure
+- Main: `TrailblazerPlugin` sets static `instance` + `pluginLogger`; initializes managers: `PathDataManager`, `PlayerRenderSettingsManager`, `ServerPacketHandler`, `PathRendererManager`, `RecordingManager`.
+- Recording tick scheduled every 2 ticks; quitting players trigger cleanup (`onPlayerQuit`). Maintain this frequency if extending to avoid server load spikes.
+- Commands: `/trailblazer` central command with subcommands (see executor + tab completer classes). When adding subcommands, register inside existing command tree rather than new root commands.
+- Persistence (server) currently basic (see `PathDataManager`); if you change file layout, preserve legacy reads or write a one‑time migration.
 
-### Packet Extension Checklist
-1) Channel name `trailblazer:<action>` snake_case. 2) Mirror payload class both sides (`<ActionName>Payload`). 3) Prefer compact binary (length‑prefixed varints) unless JSON needed (list of paths). 4) Register in server `ServerPacketHandler` + client networking registrar. 5) Gate with `isModdedPlayer`. 6) Incompat change → bump protocol.
+### Conventions & Guardrails
+- Always treat `PathData` list fields (`points`, `sharedWith`) as mutable on the owning side; external APIs pass defensive copies only when persisting.
+- Use `markDirty(pathId)` after any in‑place mutation of local/imported `PathData` points or metadata to ensure autosave.
+- Never persist server‑backed (`SERVER_OWNED` / `SERVER_SHARED`) paths locally—`PathPersistenceManager.markDirty()` already filters; keep it that way.
+- Handle naming collisions only through existing helper (`uniquePathName`), not ad hoc string concatenation.
+- When changing color logic, update both `assignColorFor` and `nameOrHex` mappings; keep palette ARGB format (alpha in high byte).
 
-### Persistence / Compatibility
-Never remove lazy color initialization until all historical files guarantee non‑zero color. Preserve deterministic ordering when returning path lists (sorting changes can cause client diff churn). Provide new `PathData` constructor overloads instead of breaking existing ones.
+### Build & Tasks
+- Root Gradle sets shared group/version, Java 21. Build everything: `./gradlew build`.
+- Fabric mod jar (remapped) produced via Loom standard tasks; ensure `trailblazer-api` jar is built before `processIncludeJars` (already enforced by explicit `dependsOn`).
+- Plugin shaded jar: `trailblazer-plugin:shadowJar` (classifier removed so final artifact is in `libs/Trailblazer-plugin-1.0.0.jar`). Relocations for Gson + Netty live in plugin build script—add further libs there to avoid namespace clashes.
 
-### Build / Tooling
-Java 21 root. Build all: `gradlew build` → shaded plugin + remapped Fabric jar + API jar. Iterating plugin only: `gradlew :trailblazer-plugin:shadowJar` (relocates Gson/Netty under `com.trailblazer.plugin.libs.*`). Fabric module ensures `processIncludeJars` depends on API jar.
+### SAFE CHANGE CHECKLIST (mental)
+1. Does it alter `PathData` fields? → Update persistence + network (both sides) + color assignment if relevant.
+2. Does it change recording cadence or distance threshold? → Reconsider autosave / thinning limits and performance.
+3. Introducing new threading? → Current code is largely single‑threaded (client tick / server main); keep file IO atomic but synchronous.
 
-### Guardrails
-No Bukkit/Fabric refs in API. No cyclical module deps. Avoid per‑tick spam for unchanged data (send deltas or batch). Keep packet + payload naming aligned. Use UUIDs (never rely on usernames for identity logic).
-
-### Quick Extension Examples
-Add simple ID event → copy pattern of `PathDeletedPayload`. Add metadata field → add to `PathData`, serialize in persistence + (if client needs it) include in sync JSON & metadata update packet.
-
-### Manual Sanity Checklist (pre PR)
-1) Modded + vanilla client both: record, stop, share, delete still work. 2) New packets appear only for modded players. 3) Shaded plugin jar has relocated deps (no raw `com/google/gson`).
-
----
-Refine when recurring reviewer guidance appears. If something feels ambiguous, surface it in PR description for future inclusion here.
+Ask if anything beyond this needs clarification or if a section is missing for a feature you plan to modify.
