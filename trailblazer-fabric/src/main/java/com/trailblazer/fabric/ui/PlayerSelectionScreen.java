@@ -19,6 +19,7 @@ public class PlayerSelectionScreen extends Screen {
     private final List<PlayerListEntry> onlinePlayers;
     private final List<UUID> selectedPlayers = new ArrayList<>();
     private ButtonWidget shareButton;
+    private final net.minecraft.text.Text shareDisabledTooltip = Text.of("Server-side plugin required");
 
     public PlayerSelectionScreen(PathData path, Screen parent) {
         super(Text.of("Share Path with Players"));
@@ -83,5 +84,16 @@ public class PlayerSelectionScreen extends Screen {
         this.renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 20, 0xFFFFFF);
+
+        // tooltip for disabled share button when no server-side support
+        if (!shareButton.active) {
+            int sx = shareButton.getX();
+            int sy = shareButton.getY();
+            int sw = shareButton.getWidth();
+            int sh = shareButton.getHeight();
+            if (mouseX >= sx && mouseX <= sx + sw && mouseY >= sy && mouseY <= sy + sh) {
+                context.drawTooltip(this.textRenderer, shareDisabledTooltip, mouseX, mouseY);
+            }
+        }
     }
 }

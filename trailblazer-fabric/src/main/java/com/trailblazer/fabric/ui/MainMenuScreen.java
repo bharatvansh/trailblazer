@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import com.trailblazer.fabric.networking.payload.c2s.SharePathRequestPayload;
 
 public class MainMenuScreen extends Screen {
     private final ClientPathManager pathManager;
@@ -162,6 +164,53 @@ public class MainMenuScreen extends Screen {
         context.fill(0, 0, this.width, this.height, 0x26000000);
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 15, 0xFFFFFF);
+
+        // When the user is viewing the Shared With Me tab but sharing is not available
+        if (!showingMyPaths) {
+            boolean canShare = ClientPlayNetworking.canSend(SharePathRequestPayload.ID);
+            boolean hasShared = !pathManager.getSharedPaths().isEmpty();
+            if (!canShare && !hasShared) {
+                String[] lines = new String[] {
+                    "Server-side plugin required",
+                    "",
+                    "The sharing features require the Trailblazer server-side plugin to be installed.",
+                    "This is not available in singleplayer or when connecting to an unmodded server.",
+                    "Install the Trailblazer plugin on the server to enable sharing between players."
+                };
+                int boxWidth = Math.min(this.width - 60, 800);
+                int boxX = (this.width - boxWidth) / 2;
+                int boxY = this.height / 2 - 60;
+                int lineHeight = this.textRenderer.fontHeight + 4;
+                int boxHeight = lines.length * lineHeight + 12;
+                // background
+                context.fill(boxX - 8, boxY - 6, boxX + boxWidth + 8, boxY + boxHeight + 6, 0x90000000);
+                // draw lines centered
+                for (int i = 0; i < lines.length; i++) {
+                    String s = lines[i];
+                    int y = boxY + i * lineHeight;
+                    context.drawCenteredTextWithShadow(this.textRenderer, Text.of(s), this.width / 2, y, i == 0 ? 0xFFFF5555 : 0xFFFFFF);
+                }
+            } else if (canShare && !hasShared) {
+                // Server is present but there are no shared paths yet — show a friendly, subtle message
+                String[] lines = new String[] {
+                    "No shared paths yet",
+                    "",
+                    "No one has shared any paths with you on this server yet.",
+                    "Ask other players to share a path, or share one of your own."
+                };
+                int boxWidth = Math.min(this.width - 60, 700);
+                int boxX = (this.width - boxWidth) / 2;
+                int boxY = this.height / 2 - 40;
+                int lineHeight = this.textRenderer.fontHeight + 4;
+                int boxHeight = lines.length * lineHeight + 12;
+                context.fill(boxX - 8, boxY - 6, boxX + boxWidth + 8, boxY + boxHeight + 6, 0x90000000);
+                for (int i = 0; i < lines.length; i++) {
+                    String s = lines[i];
+                    int y = boxY + i * lineHeight;
+                    context.drawCenteredTextWithShadow(this.textRenderer, Text.of(s), this.width / 2, y, i == 0 ? 0xFFFFFF : 0xDDDDDD);
+                }
+            }
+        }
     }
 }
 

@@ -179,6 +179,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         private final PathOrigin origin;
         private final ButtonWidget toggleButton;
         private final ButtonWidget shareButton;
+    private final net.minecraft.text.Text shareDisabledTooltip;
         private final ButtonWidget editButton;
         private final ButtonWidget deleteButton;
         private boolean awaitingDeleteConfirm = false;
@@ -199,9 +200,15 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             this.shareButton = ButtonWidget.builder(Text.of("Share"), button -> {
                 MinecraftClient.getInstance().setScreen(new PlayerSelectionScreen(path, MinecraftClient.getInstance().currentScreen));
             }).build();
-        boolean canShare = ClientPlayNetworking.canSend(SharePathRequestPayload.ID)
-            && (origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_OWNED);
+            boolean canSend = ClientPlayNetworking.canSend(SharePathRequestPayload.ID);
+            boolean originAllows = (origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_OWNED);
+            boolean canShare = canSend && originAllows;
             this.shareButton.active = canShare;
+            if (!canSend) {
+                this.shareDisabledTooltip = Text.of("Server-side plugin required");
+            } else {
+                this.shareDisabledTooltip = null;
+            }
 
             this.editButton = ButtonWidget.builder(Text.of("Edit"), button -> {
                 MinecraftClient.getInstance().setScreen(new PathCreationScreen(pathManager, updatedPath -> {
@@ -324,6 +331,17 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             if (awaitingDeleteConfirm && System.currentTimeMillis() - deleteConfirmStartMs > CONFIRM_TIMEOUT_MS) {
                 awaitingDeleteConfirm = false;
                 deleteButton.setMessage(origin == PathOrigin.SERVER_SHARED ? Text.of("Remove") : Text.of("Delete"));
+            }
+
+            // Show tooltip for disabled share button when server-side plugin is required
+            if (isMyPath && shareDisabledTooltip != null) {
+                int sx = shareButton.getX();
+                int sy = shareButton.getY();
+                int sw = shareButton.getWidth();
+                int sh = shareButton.getHeight();
+                if (mouseX >= sx && mouseX <= sx + sw && mouseY >= sy && mouseY <= sy + sh) {
+                    context.drawTooltip(MinecraftClient.getInstance().textRenderer, shareDisabledTooltip, mouseX, mouseY);
+                }
             }
         }
 
