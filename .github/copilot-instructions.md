@@ -40,6 +40,7 @@ Separation rule: NEVER introduce Bukkit/Fabric/Minecraft classes into `trailblaz
 ## 5. Naming & Ownership Semantics
 - `PathData.pathId` is unique per stored path. Shared copies retain `originPathId` + `originOwnerUUID/Name` to trace lineage. Always set origin fields when creating a shared copy (server ensures via `ensureSharedCopy`).
 - Ownership check pattern: `p.getPathId().equals(targetId) && p.getOwnerUUID().equals(requesterUUID)` before destructive operations.
+- Shared-copy independence: once a path is shared and a recipient receives their copy, the recipient's copy is independent — the original sender must not be able to mutate or delete the recipient's copy remotely. Any client-side or server-side mutating request affecting a server-stored path must be validated and applied only to or the requester's own copy; do not allow implicit global edits to other players' local copies
 - Color: `colorArgb == 0` triggers lazy assignment; never persist 0 unless you want deterministic reassignment.
 
 ## 6. Command & Tick Patterns (Server)
