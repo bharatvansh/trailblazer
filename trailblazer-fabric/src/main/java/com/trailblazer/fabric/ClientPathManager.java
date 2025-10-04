@@ -444,4 +444,25 @@ public class ClientPathManager {
         }
         return false;
     }
+
+    public void replaceLocalWithServerCopy(PathData serverCopy) {
+        if (serverCopy == null || serverCopy.getOriginPathId() == null) {
+            return;
+        }
+
+        // The originPathId of the server copy holds the original client-side UUID.
+        UUID originalClientId = serverCopy.getOriginPathId();
+
+        // Remove the old local path.
+        deletePath(originalClientId);
+
+        // Add the new server-authoritative path.
+        putPath(serverCopy, PathOrigin.SERVER_OWNED);
+        setPathVisible(serverCopy.getPathId());
+
+        // Trigger a persistence save.
+        if (persistence != null) {
+            persistence.markDirty(serverCopy.getPathId());
+        }
+    }
 }

@@ -13,6 +13,7 @@ import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -26,6 +27,10 @@ import java.util.stream.Stream;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
+import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
+import com.trailblazer.fabric.sharing.PathShareSender;
+import com.trailblazer.fabric.networking.payload.c2s.SavePathRequestPayload;
+import com.google.gson.Gson;
 
 public final class TrailblazerCommand {
 
@@ -57,6 +62,18 @@ public final class TrailblazerCommand {
                 .executes(ctx -> sendHelp(ctx.getSource()))
                 .then(literal("help").executes(ctx -> sendHelp(ctx.getSource())))
                 .then(recordNode)
+                .then(literal("share")
+                    .then(argument("name", StringArgumentType.greedyString())
+                        .suggests(TrailblazerCommand::suggestPathNames)
+                        .then(argument("players", StringArgumentType.string())
+                            .suggests(TrailblazerCommand::suggestPlayerNames)
+                            .executes(ctx -> sharePath(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "players"))))))
+                .then(literal("color")
+                    .then(argument("name", StringArgumentType.greedyString())
+                        .suggests(TrailblazerCommand::suggestPathNames)
+                        .then(argument("color", StringArgumentType.string())
+                            .suggests(TrailblazerCommand::suggestColorNames)
+                            .executes(ctx -> setColor(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "color"))))))
                 .then(literal("view")
                     .then(argument("name", StringArgumentType.greedyString())
                         .suggests(TrailblazerCommand::suggestPathNames)
@@ -79,6 +96,11 @@ public final class TrailblazerCommand {
                     .then(argument("name", StringArgumentType.greedyString())
                         .suggests(TrailblazerCommand::suggestPathNames)
                         .executes(ctx -> deletePath(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
+                    .then(literal("save")
+                        .then(argument("name", StringArgumentType.greedyString())
+                            .suggests(TrailblazerCommand::suggestLocalPathNames)
+                            .executes(ctx -> savePath(ctx.getSource(), StringArgumentType.getString(ctx, "name"))))
+                        .executes(ctx -> savePath(ctx.getSource(), null)))
                 .then(literal("rename")
                     .then(argument("oldName", StringArgumentType.string())
                         .suggests(TrailblazerCommand::suggestLocalPathNames)
@@ -99,7 +121,8 @@ public final class TrailblazerCommand {
         source.sendFeedback(Text.literal("/trailblazer record start").formatted(Formatting.YELLOW).append(Text.literal(" - Start a new recording." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer record stop").formatted(Formatting.YELLOW).append(Text.literal(" - Stop and keep current recording." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer record cancel").formatted(Formatting.YELLOW).append(Text.literal(" - Cancel and discard current recording." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer record status").formatted(Formatting.YELLOW).append(Text.literal(" - Show current recording status." ).formatted(Formatting.WHITE)));
+    source.sendFeedback(Text.literal("/trailblazer record status").formatted(Formatting.YELLOW).append(Text.literal(" - Show current recording status." ).formatted(Formatting.WHITE)));
+    source.sendFeedback(Text.literal("/trailblazer save [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Save a local recording to the server (omit name to save the most recent local recording)." ).formatted(Formatting.WHITE)));
     source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path using client renderer (quote names with spaces).").formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer hide [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Hide one path or all (no name).\n").formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer rendermode <mode>").formatted(Formatting.YELLOW).append(Text.literal(" - Change client render mode. Modes: trail | markers | arrows").formatted(Formatting.WHITE)));
@@ -130,6 +153,21 @@ public final class TrailblazerCommand {
         return builder.buildFuture();
     }
 
+    private static CompletableFuture<Suggestions> suggestColorNames(com.mojang.brigadier.context.CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder) {
+        com.trailblazer.api.PathColors.getColorNames().forEach(builder::suggest);
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestPlayerNames(com.mojang.brigadier.context.CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder) {
+        var handler = net.minecraft.client.MinecraftClient.getInstance().getNetworkHandler();
+        if (handler != null) {
+            handler.getPlayerList().stream()
+                .map(p -> p.getProfile().getName())
+                .forEach(builder::suggest);
+        }
+        return builder.buildFuture();
+    }
+
     private static int viewPath(FabricClientCommandSource source, String name) {
         UUID found = findPathIdByName(name);
         if (found == null) {
@@ -138,6 +176,100 @@ public final class TrailblazerCommand {
         }
         pathManager.setPathVisible(found);
         source.sendFeedback(Text.literal("Showing path: " + name).formatted(Formatting.GREEN));
+        return 1;
+    }
+
+    private static int setColor(FabricClientCommandSource source, String name, String colorArg) {
+        UUID found = findPathIdByName(name);
+        if (found == null) {
+            source.sendError(Text.literal("Path not found: " + name));
+            return 0;
+        }
+
+        java.util.Optional<Integer> parsed = com.trailblazer.api.PathColors.parse(colorArg);
+        if (parsed.isEmpty()) {
+            source.sendError(Text.literal("Invalid color. Use a name or #RRGGBB."));
+            return 0;
+        }
+        int color = parsed.get();
+
+        // Update local copy
+        PathData path = null;
+        for (PathData p : pathManager.getMyPaths()) if (p.getPathId().equals(found)) path = p;
+        if (path == null) {
+            for (PathData p : pathManager.getSharedPaths()) if (p.getPathId().equals(found)) path = p;
+        }
+        if (path == null) {
+            source.sendError(Text.literal("Path not found: " + name));
+            return 0;
+        }
+
+        path.setColorArgb(color);
+        pathManager.onPathUpdated(path);
+
+        // If this is a server-owned path, send metadata update to server so it persists
+        com.trailblazer.fabric.ClientPathManager.PathOrigin origin = pathManager.getPathOrigin(found);
+        if (origin == com.trailblazer.fabric.ClientPathManager.PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(UpdatePathMetadataPayload.ID)) {
+            try {
+                ClientPlayNetworking.send(new UpdatePathMetadataPayload(found, path.getPathName(), color));
+            } catch (Exception ignored) {}
+        }
+
+        source.sendFeedback(Text.literal("Color set to " + com.trailblazer.api.PathColors.nameOrHex(color)).formatted(Formatting.GREEN));
+        return 1;
+    }
+
+    private static int sharePath(FabricClientCommandSource source, String name, String playersCsv) {
+        UUID found = findPathIdByName(name);
+        if (found == null) {
+            source.sendError(Text.literal("Path not found: " + name));
+            return 0;
+        }
+
+        PathData path = null;
+        for (PathData p : pathManager.getMyPaths()) if (p.getPathId().equals(found)) path = p;
+        if (path == null) {
+            for (PathData p : pathManager.getSharedPaths()) if (p.getPathId().equals(found)) path = p;
+        }
+        if (path == null) {
+            source.sendError(Text.literal("Path not found: " + name));
+            return 0;
+        }
+
+        // resolve player names (comma separated)
+        String[] parts = playersCsv.split(",");
+        List<UUID> recipients = new ArrayList<>();
+        var handler = net.minecraft.client.MinecraftClient.getInstance().getNetworkHandler();
+        if (handler == null) {
+            source.sendError(Text.literal("No network handler available."));
+            return 0;
+        }
+        List<String> matchedNames = new ArrayList<>();
+        for (String p : parts) {
+            String nameTrim = p.trim();
+            if (nameTrim.isEmpty()) continue;
+            for (var entry : handler.getPlayerList()) {
+                if (entry.getProfile().getName().equalsIgnoreCase(nameTrim)) {
+                    recipients.add(entry.getProfile().getId());
+                    matchedNames.add(entry.getProfile().getName());
+                    break;
+                }
+            }
+        }
+
+        if (recipients.isEmpty()) {
+            source.sendError(Text.literal("No valid online players found to share with."));
+            return 0;
+        }
+
+        try {
+            PathShareSender.sharePath(path, recipients);
+            source.sendFeedback(Text.literal("Share request sent for '" + name + "' to: " + String.join(", ", matchedNames)).formatted(Formatting.GREEN));
+        } catch (Exception ex) {
+            source.sendError(Text.literal("Failed to send share request: " + ex.getMessage()));
+            return 0;
+        }
+
         return 1;
     }
 
@@ -365,11 +497,72 @@ public final class TrailblazerCommand {
                 source.sendFeedback(Text.literal("Deleted path locally: " + name).formatted(Formatting.GREEN));
             }
             case SERVER_OWNED, SERVER_SHARED -> {
-                pathManager.removeServerPath(pathId);
-                source.sendFeedback(Text.literal("Removed server-synced path from your list: " + name).formatted(Formatting.YELLOW));
+                // If server supports delete payload, request server deletion for SERVER_OWNED paths.
+                if (origin == PathOrigin.SERVER_OWNED && ClientPlayNetworking.canSend(com.trailblazer.fabric.networking.payload.c2s.DeletePathPayload.ID)) {
+                    try {
+                        ClientPlayNetworking.send(new com.trailblazer.fabric.networking.payload.c2s.DeletePathPayload(pathId));
+                        source.sendFeedback(Text.literal("Requested server deletion for: " + name).formatted(Formatting.YELLOW));
+                    } catch (Exception ignored) {
+                        // Fallback: remove locally from client list if send fails
+                        pathManager.removeServerPath(pathId);
+                        source.sendFeedback(Text.literal("Removed server-synced path from your list: " + name).formatted(Formatting.YELLOW));
+                    }
+                } else {
+                    // For server-shared (or when server delete not supported) just remove client-side entry
+                    pathManager.removeServerPath(pathId);
+                    source.sendFeedback(Text.literal("Removed server-synced path from your list: " + name).formatted(Formatting.YELLOW));
+                }
             }
         }
         return 1;
+    }
+
+    private static int savePath(FabricClientCommandSource source, String name) {
+        PathData path = null;
+        if (name != null && !name.isBlank()) {
+            // Find a specific path by name
+            path = pathManager.getMyPaths().stream()
+                .filter(p -> p.getPathName().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+
+            if (path == null) {
+                source.sendError(Text.literal("Local path not found: " + name));
+                return 0;
+            }
+        } else {
+            // Find the most recent local path if no name is given
+            path = pathManager.getMyPaths().stream()
+                .filter(p -> pathManager.isLocalPath(p.getPathId()))
+                .max((p1, p2) -> Long.compare(p1.getCreationTimestamp(), p2.getCreationTimestamp()))
+                .orElse(null);
+
+            if (path == null) {
+                source.sendError(Text.literal("No local paths available to save."));
+                return 0;
+            }
+        }
+
+        // Prevent saving a path that is already backed by the server
+        if (pathManager.isServerBacked(path.getPathId())) {
+            source.sendError(Text.literal("Path '" + path.getPathName() + "' is already saved to the server."));
+            return 0;
+        }
+
+        try {
+            String json = new Gson().toJson(path);
+            if (ClientPlayNetworking.canSend(SavePathRequestPayload.ID)) {
+                ClientPlayNetworking.send(new SavePathRequestPayload(json));
+                source.sendFeedback(Text.literal("Save request sent to server for '" + path.getPathName() + "'.").formatted(Formatting.GREEN));
+                return 1;
+            } else {
+                source.sendError(Text.literal("Server does not support saving paths via client requests."));
+                return 0;
+            }
+        } catch (Exception ex) {
+            source.sendError(Text.literal("Failed to send save request: " + ex.getMessage()));
+            return 0;
+        }
     }
 
     private static int renamePath(FabricClientCommandSource source, String oldName, String newName) {
@@ -392,9 +585,27 @@ public final class TrailblazerCommand {
         UUID pathId = path.getPathId();
         PathOrigin origin = pathManager.getPathOrigin(pathId);
 
-        if (origin == PathOrigin.SERVER_OWNED || origin == PathOrigin.SERVER_SHARED) {
-            source.sendError(Text.literal("Server-managed paths cannot be renamed locally."));
+        if (origin == PathOrigin.SERVER_SHARED) {
+            source.sendError(Text.literal("Server-shared paths cannot be renamed locally."));
             return 0;
+        }
+
+        if (origin == PathOrigin.SERVER_OWNED) {
+            // Request server-side rename so server persists authoritative name
+            if (ClientPlayNetworking.canSend(UpdatePathMetadataPayload.ID)) {
+                try {
+                    // send current color back along with requested name
+                    ClientPlayNetworking.send(new UpdatePathMetadataPayload(pathId, trimmed, path.getColorArgb()));
+                    source.sendFeedback(Text.literal("Requested server rename for '" + oldName + "' -> '" + trimmed + "'.").formatted(Formatting.GREEN));
+                    return 1;
+                } catch (Exception ex) {
+                    source.sendError(Text.literal("Failed to send rename request: " + ex.getMessage()));
+                    return 0;
+                }
+            } else {
+                source.sendError(Text.literal("Server does not support remote rename."));
+                return 0;
+            }
         }
 
         boolean nameTaken = pathManager.getMyPaths().stream()

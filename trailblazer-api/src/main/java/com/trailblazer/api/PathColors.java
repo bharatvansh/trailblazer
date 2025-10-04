@@ -47,6 +47,10 @@ public final class PathColors {
         return PALETTE;
     }
 
+    public static Set<String> getColorNames() {
+        return NAME_TO_COLOR.keySet();
+    }
+
     /** Assigns color based on path ID hash. */
     public static int assignColorFor(UUID pathId) {
         if (pathId == null) return PALETTE.get(0);

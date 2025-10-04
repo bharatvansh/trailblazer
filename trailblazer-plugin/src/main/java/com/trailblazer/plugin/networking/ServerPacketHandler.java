@@ -42,6 +42,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private static final String UPDATE_METADATA_CHANNEL = "trailblazer:update_path_metadata";
     private static final String SHARE_PATH_WITH_PLAYERS_CHANNEL = "trailblazer:share_path_with_players";
     private static final String SHARE_REQUEST_CHANNEL = "trailblazer:share_request";
+    private static final String SAVE_PATH_CHANNEL = "trailblazer:save_path";
 
     private final PathDataManager dataManager;
 
@@ -59,6 +60,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathActionResultPayload.CHANNEL);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_REQUEST_CHANNEL, this);
+    plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SAVE_PATH_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_PATH_WITH_PLAYERS_CHANNEL, this);
@@ -140,6 +142,11 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
         if (channel.equalsIgnoreCase(SHARE_REQUEST_CHANNEL)) {
             handleShareRequest(player, message);
+            return;
+        }
+
+        if (channel.equalsIgnoreCase(SAVE_PATH_CHANNEL)) {
+            handleSaveRequest(player, message);
             return;
         }
     }
@@ -380,6 +387,51 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         } catch (Exception ex) {
             plugin.getLogger().warning("Failed to process share request payload from " + sender.getName() + ": " + ex.getMessage());
             sendActionResult(sender, "share", null, false, "An error occurred while sharing the path.", null);
+        }
+    }
+
+    private void handleSaveRequest(Player sender, byte[] message) {
+        try {
+            // The incoming message for a save request is the raw JSON string
+            String json = new String(message, StandardCharsets.UTF_8);
+            PathData clientPath = gson.fromJson(json, PathData.class);
+            if (clientPath == null) {
+                sendActionResult(sender, "save", null, false, "Invalid path data.", null);
+                return;
+            }
+
+            // Server is authoritative: generate a new UUID for the persistent copy.
+            UUID serverPathId = UUID.randomUUID();
+            // The owner is always the player who sent the request.
+            UUID ownerId = sender.getUniqueId();
+            String ownerName = sender.getName();
+
+            // Create the new authoritative path data.
+            PathData serverCopy = new PathData(
+                serverPathId,
+                clientPath.getPathName(),
+                ownerId,
+                ownerName,
+                System.currentTimeMillis(),
+                clientPath.getDimension(),
+                new ArrayList<>(clientPath.getPoints()),
+                clientPath.getColorArgb()
+            );
+
+            // Preserve the original client-side ID as the origin ID for lineage tracking.
+            serverCopy.setOrigin(clientPath.getPathId(), clientPath.getOwnerUUID(), clientPath.getOwnerName());
+
+            // Persist the new server-authoritative copy.
+            dataManager.savePath(serverCopy);
+
+            // Send a success result back to the client with the new, authoritative path data.
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                sendActionResult(sender, "save", serverCopy.getPathId(), true, "Path saved successfully.", serverCopy);
+            });
+
+        } catch (Exception ex) {
+            plugin.getLogger().warning("Failed to process save path payload from " + sender.getName() + ": " + ex.getMessage());
+            sendActionResult(sender, "save", null, false, "An error occurred while saving the path.", null);
         }
     }
 

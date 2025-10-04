@@ -93,9 +93,15 @@ public class ClientPacketHandler {
         ClientPlayNetworking.registerGlobalReceiver(PathActionResultPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 var client = context.client();
-                if (payload.updatedPath() != null) {
+
+                // Handle the special case for a successful "save" action
+                if ("save".equals(payload.action()) && payload.success() && payload.updatedPath() != null) {
+                    pathManager.replaceLocalWithServerCopy(payload.updatedPath());
+                } else if (payload.updatedPath() != null) {
+                    // Handle generic updates for other actions like rename, color, etc.
                     pathManager.onPathUpdated(payload.updatedPath());
                 }
+
                 if (client.player != null && payload.message() != null && !payload.message().isEmpty()) {
                     net.minecraft.text.Style style = payload.success() ? net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.GREEN) : net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.RED);
                     client.player.sendMessage(net.minecraft.text.Text.literal(payload.message()).setStyle(style), false);

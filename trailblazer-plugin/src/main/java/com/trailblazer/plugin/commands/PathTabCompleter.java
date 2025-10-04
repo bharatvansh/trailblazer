@@ -78,7 +78,7 @@ public class PathTabCompleter implements TabCompleter {
 
         if (args.length == 3 && args[0].equalsIgnoreCase("color")) {
             // Suggest palette color names
-            List<String> names = List.of("red","orange","yellow","green","cyan","blue","purple","pink","white");
+            List<String> names = new ArrayList<>(com.trailblazer.api.PathColors.getColorNames());
             return StringUtil.copyPartialMatches(args[2], names, new ArrayList<>());
         }
 
