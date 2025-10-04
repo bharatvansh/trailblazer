@@ -100,13 +100,13 @@ public final class TrailblazerCommand {
         source.sendFeedback(Text.literal("/trailblazer record stop").formatted(Formatting.YELLOW).append(Text.literal(" - Stop and keep current recording." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer record cancel").formatted(Formatting.YELLOW).append(Text.literal(" - Cancel and discard current recording." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer record status").formatted(Formatting.YELLOW).append(Text.literal(" - Show current recording status." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path using client renderer.").formatted(Formatting.WHITE)));
+    source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path using client renderer (quote names with spaces).").formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer hide [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Hide one path or all (no name).\n").formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer rendermode <mode>").formatted(Formatting.YELLOW).append(Text.literal(" - Change client render mode. Modes: trail | markers | arrows").formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer list").formatted(Formatting.YELLOW).append(Text.literal(" - List your local and shared paths.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Get the start and end coordinates of a path.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Delete or hide a path locally.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a local or imported path.").formatted(Formatting.WHITE)));
+    source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Get the start and end coordinates of a path (quote names with spaces).").formatted(Formatting.WHITE)));
+    source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Delete or hide a path locally (quote names with spaces).").formatted(Formatting.WHITE)));
+    source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a local or imported path (quote names with spaces).").formatted(Formatting.WHITE)));
         return 1;
     }
 

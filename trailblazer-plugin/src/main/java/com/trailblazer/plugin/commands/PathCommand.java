@@ -168,13 +168,12 @@ public class PathCommand implements CommandExecutor {
 
     private void handleInfo(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(Component.text("Usage: /trailblazer info <name>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /trailblazer info <name> (use quotes for names with spaces)", NamedTextColor.RED));
             return;
         }
-        String pathName = args[1];
-        Optional<PathData> pathOpt = pathDataManager.loadPaths(player.getUniqueId()).stream()
-            .filter(p -> p.getPathName().equalsIgnoreCase(pathName))
-            .findFirst();
+        var pr = CommandUtils.parseQuoted(args, 1, true);
+        String pathName = pr.value;
+        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getUniqueId()), pathName);
 
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
@@ -196,13 +195,15 @@ public class PathCommand implements CommandExecutor {
 
     private void handleColor(Player player, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(Component.text("Usage: /path color <name> <colorName|#RRGGBB>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /trailblazer color <name> <colorName|#RRGGBB> (quote name if it has spaces)", NamedTextColor.RED));
             return;
         }
-        String pathName = args[1];
-        String colorArg = args[2];
+        var pr = CommandUtils.parseQuoted(args, 1, false);
+        String pathName = pr.value;
+        var pr2 = CommandUtils.parseQuoted(args, pr.nextIndex, true);
+        String colorArg = pr2.value;
         List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
-        Optional<PathData> pathOpt = paths.stream().filter(p -> p.getPathName().equalsIgnoreCase(pathName)).findFirst();
+    Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, pathName);
         if (pathOpt.isEmpty()) {
             player.sendMessage(Component.text("Path '" + pathName + "' not found.", NamedTextColor.RED));
             return;
@@ -227,12 +228,13 @@ public class PathCommand implements CommandExecutor {
             return;
         }
         if (args.length < 2) {
-            player.sendMessage(Component.text("Usage: /path view <name>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /trailblazer view <name> (quote names with spaces)", NamedTextColor.RED));
             return;
         }
-        String pathName = args[1];
+        var pr = CommandUtils.parseQuoted(args, 1, true);
+        String pathName = pr.value;
         List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
-        Optional<PathData> pathOpt = paths.stream().filter(p -> p.getPathName().equalsIgnoreCase(pathName)).findFirst();
+    Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, pathName);
 
         if (pathOpt.isPresent()) {
             plugin.getPathRendererManager().startRendering(player, pathOpt.get());
@@ -253,13 +255,12 @@ public class PathCommand implements CommandExecutor {
 
     private void handleDelete(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(Component.text("Usage: /path delete <name>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /trailblazer delete <name> (quote names with spaces)", NamedTextColor.RED));
             return;
         }
-        String pathName = args[1];
-        Optional<PathData> pathOpt = pathDataManager.loadPaths(player.getUniqueId()).stream()
-            .filter(p -> p.getPathName().equalsIgnoreCase(pathName))
-            .findFirst();
+        var pr = CommandUtils.parseQuoted(args, 1, true);
+        String pathName = pr.value;
+        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getUniqueId()), pathName);
 
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
@@ -320,11 +321,13 @@ public class PathCommand implements CommandExecutor {
 
     private void handleRename(Player player, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(Component.text("Usage: /path rename <oldName> <newName>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /trailblazer rename <oldName> <newName> (quote names with spaces)", NamedTextColor.RED));
             return;
         }
-        String oldName = args[1];
-        String newName = args[2];
+        var pr = CommandUtils.parseQuoted(args, 1, false);
+        String oldName = pr.value;
+        var pr2 = CommandUtils.parseQuoted(args, pr.nextIndex, true);
+        String newName = pr2.value;
         List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
 
         // Check if a path with the new name already exists to avoid duplicates.
@@ -333,7 +336,7 @@ public class PathCommand implements CommandExecutor {
             return;
         }
 
-        Optional<PathData> pathOpt = paths.stream().filter(p -> p.getPathName().equalsIgnoreCase(oldName)).findFirst();
+    Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, oldName);
 
         if (pathOpt.isPresent()) {
             // A player can rename any path in their list. For shared paths, this is just a local alias.
@@ -371,12 +374,13 @@ public class PathCommand implements CommandExecutor {
 
     private void handleShare(Player player, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(Component.text("Usage: /path share <path-name> <player1,player2,...>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /trailblazer share <path-name> <player1,player2,...> (quote path-name if it has spaces)", NamedTextColor.RED));
             return;
         }
 
-        String pathName = args[1];
-        List<String> targetPlayerNames = Arrays.asList(args[2].split(","));
+        var pr = CommandUtils.parseQuoted(args, 1, true);
+        String pathName = pr.value;
+        List<String> targetPlayerNames = Arrays.asList(args[pr.nextIndex].split(","));
 
         List<Player> targetPlayers = targetPlayerNames.stream()
                 .map(name -> plugin.getServer().getPlayer(name.trim()))
@@ -395,9 +399,9 @@ public class PathCommand implements CommandExecutor {
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
             if (path.getOwnerUUID().equals(player.getUniqueId())) {
-                List<String> newShares = new ArrayList<>();
+                List<String> succeeded = new ArrayList<>();
                 List<String> alreadyHad = new ArrayList<>();
-                boolean updatedOwnerRecord = false;
+                java.util.Map<String, String> failed = new java.util.HashMap<>();
 
                 for (Player targetPlayer : targetPlayers) {
                     if (targetPlayer.getUniqueId().equals(player.getUniqueId())) {
@@ -406,42 +410,46 @@ public class PathCommand implements CommandExecutor {
                     }
 
                     PathDataManager.SharedCopyResult result = pathDataManager.ensureSharedCopy(path, targetPlayer.getUniqueId(), targetPlayer.getName());
+                    PathData sharedCopy = result.getPath();
                     if (!result.wasCreated()) {
+                        // The target already has a copy (idempotent behavior)
                         alreadyHad.add(targetPlayer.getName());
                         continue;
                     }
 
-                    boolean targetIsModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
-                    if (!targetIsModded) { 
-                        if (!path.getSharedWith().contains(targetPlayer.getUniqueId())) {
-                            path.getSharedWith().add(targetPlayer.getUniqueId());
-                            updatedOwnerRecord = true;
+                    boolean targetIsModded = false;
+                    try {
+                        targetIsModded = plugin.getServerPacketHandler().isModdedPlayer(targetPlayer);
+                    } catch (Exception ignored) {}
+
+                    try {
+                        if (targetIsModded) {
+                            plugin.getServerPacketHandler().sendSharePath(targetPlayer, sharedCopy);
+                            targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
+                        } else {
+                            plugin.getPathRendererManager().startRendering(targetPlayer, sharedCopy);
+                            targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                            targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
                         }
+                        succeeded.add(targetPlayer.getName());
+                    } catch (Exception ex) {
+                        // Record failure with message so sender can act accordingly
+                        String reason = ex.getMessage() != null ? ex.getMessage() : "unknown error";
+                        failed.put(targetPlayer.getName(), reason);
                     }
-
-                    PathData sharedCopy = result.getPath();
-                    if (targetIsModded) {
-                        plugin.getServerPacketHandler().sendSharePath(targetPlayer, sharedCopy);
-                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
-                    } else {
-                        plugin.getPathRendererManager().startRendering(targetPlayer, sharedCopy);
-                        targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
-                        targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
-                    }
-
-                    newShares.add(targetPlayer.getName());
                 }
-
-                if (updatedOwnerRecord) {
-                    pathDataManager.savePath(path);
+                // Send a clear per-target result summary to the sender
+                if (!succeeded.isEmpty()) {
+                    player.sendMessage(Component.text("Path '" + pathName + "' successfully shared with: " + String.join(", ", succeeded) + ".", NamedTextColor.GREEN));
                 }
-
-                if (!newShares.isEmpty()) {
-                    player.sendMessage(Component.text("Path '" + pathName + "' shared with " + String.join(", ", newShares) + ".", NamedTextColor.GREEN));
-                }
-
                 if (!alreadyHad.isEmpty()) {
                     player.sendMessage(Component.text(String.join(", ", alreadyHad) + " already have their own copy of this path.", NamedTextColor.YELLOW));
+                }
+                if (!failed.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    failed.forEach((name, reason) -> sb.append(name).append(" (" + reason + ")").append(", "));
+                    String list = sb.length() > 2 ? sb.substring(0, sb.length() - 2) : sb.toString();
+                    player.sendMessage(Component.text("Failed to share with: " + list, NamedTextColor.RED));
                 }
             } else {
                 player.sendMessage(Component.text("You can only share paths that you own.", NamedTextColor.RED));

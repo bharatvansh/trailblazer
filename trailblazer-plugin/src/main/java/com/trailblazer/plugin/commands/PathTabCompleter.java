@@ -49,29 +49,30 @@ public class PathTabCompleter implements TabCompleter {
 
         if (args.length == 2) {
             switch (args[0].toLowerCase()) {
-                case "view":
-                case "hide":
-                case "delete":
-                case "rename":
-                case "info":
-                    List<String> pathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
-                            .map(com.trailblazer.api.PathData::getPathName)
-                            .collect(Collectors.toList());
-                    return StringUtil.copyPartialMatches(args[1], pathNames, new ArrayList<>());
+        case "view":
+        case "hide":
+        case "delete":
+        case "rename":
+        case "info":
+            var all = pathDataManager.loadPaths(player.getUniqueId()).stream();
+            var suggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(all, args[1], 50).stream()
+                .map(n -> n.contains(" ") ? ('"' + n + '"') : n)
+                .collect(Collectors.toList());
+            return StringUtil.copyPartialMatches(args[1], suggestions, new ArrayList<>());
                 case "rendermode":
                     return StringUtil.copyPartialMatches(args[1], List.of("trail", "markers", "arrows"), new ArrayList<>());
-                case "color":
-                    List<String> colorPathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
-                            .map(com.trailblazer.api.PathData::getPathName)
-                            .collect(Collectors.toList());
-                    return StringUtil.copyPartialMatches(args[1], colorPathNames, new ArrayList<>());
+        case "color":
+            var colorSuggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(pathDataManager.loadPaths(player.getUniqueId()).stream(), args[1], 50).stream()
+                .map(n -> n.contains(" ") ? ('"' + n + '"') : n)
+                .collect(Collectors.toList());
+            return StringUtil.copyPartialMatches(args[1], colorSuggestions, new ArrayList<>());
                 case "record":
                     return StringUtil.copyPartialMatches(args[1], RECORD_SUB, new ArrayList<>());
                 case "share":
-                    List<String> sharePathNames = pathDataManager.loadPaths(player.getUniqueId()).stream()
-                            .map(com.trailblazer.api.PathData::getPathName)
-                            .collect(Collectors.toList());
-                    return StringUtil.copyPartialMatches(args[1], sharePathNames, new ArrayList<>());
+            var shareSuggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(pathDataManager.loadPaths(player.getUniqueId()).stream(), args[1], 50).stream()
+                .map(n -> n.contains(" ") ? ('"' + n + '"') : n)
+                .collect(Collectors.toList());
+            return StringUtil.copyPartialMatches(args[1], shareSuggestions, new ArrayList<>());
             }
         }
 

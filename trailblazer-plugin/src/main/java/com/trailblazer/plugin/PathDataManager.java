@@ -29,13 +29,18 @@ public class PathDataManager {
         this.gson = new GsonBuilder().setPrettyPrinting().create();
     }
 
+    // Coarse-grained lock to protect file I/O operations on path JSON files.
+    private final Object ioLock = new Object();
+
     public void savePath(PathData path) {
         File pathFile = new File(dataFolder, path.getPathId().toString() + ".json");
-        try (FileWriter writer = new FileWriter(pathFile)) {
-            gson.toJson(path, writer);
-        } catch (IOException e) {
-            TrailblazerPlugin.getPluginLogger().severe("Failed to save path " + path.getPathName());
-            e.printStackTrace();
+        synchronized (ioLock) {
+            try (FileWriter writer = new FileWriter(pathFile)) {
+                gson.toJson(path, writer);
+            } catch (IOException e) {
+                TrailblazerPlugin.getPluginLogger().severe("Failed to save path " + path.getPathName());
+                e.printStackTrace();
+            }
         }
     }
 
@@ -47,20 +52,22 @@ public class PathDataManager {
 
     public List<PathData> loadPaths(UUID playerUUID) {
         List<PathData> playerPaths = new ArrayList<>();
-        File[] pathFiles = dataFolder.listFiles((dir, name) -> name.endsWith(".json"));
-        if (pathFiles == null) {
-            return playerPaths;
-        }
+        synchronized (ioLock) {
+            File[] pathFiles = dataFolder.listFiles((dir, name) -> name.endsWith(".json"));
+            if (pathFiles == null) {
+                return playerPaths;
+            }
 
-        for (File pathFile : pathFiles) {
-            try (FileReader reader = new FileReader(pathFile)) {
-                PathData pathData = gson.fromJson(reader, PathData.class);
-                if (pathData != null && (pathData.getOwnerUUID().equals(playerUUID) || pathData.getSharedWith().contains(playerUUID))) {
-                    playerPaths.add(pathData);
+            for (File pathFile : pathFiles) {
+                try (FileReader reader = new FileReader(pathFile)) {
+                    PathData pathData = gson.fromJson(reader, PathData.class);
+                    if (pathData != null && (pathData.getOwnerUUID().equals(playerUUID) || pathData.getSharedWith().contains(playerUUID))) {
+                        playerPaths.add(pathData);
+                    }
+                } catch (IOException e) {
+                    TrailblazerPlugin.getPluginLogger().severe("Failed to load a path file for " + playerUUID);
+                    e.printStackTrace();
                 }
-            } catch (IOException e) {
-                TrailblazerPlugin.getPluginLogger().severe("Failed to load a path file for " + playerUUID);
-                e.printStackTrace();
             }
         }
         return playerPaths;
@@ -68,43 +75,48 @@ public class PathDataManager {
 
     public boolean deletePath(UUID playerUUID, UUID pathId) {
         File pathFile = new File(dataFolder, pathId.toString() + ".json");
-        if (!pathFile.exists()) {
-            return false;
-        }
-
-        PathData pathData;
-        try (FileReader reader = new FileReader(pathFile)) {
-            pathData = gson.fromJson(reader, PathData.class);
-        } catch (IOException e) {
-            TrailblazerPlugin.getPluginLogger().severe("Failed to read path for deletion: " + pathId);
-            e.printStackTrace();
-            return false;
-        }
-
-        if (pathData == null) {
-            return false;
-        }
-
-        if (pathData.getOwnerUUID().equals(playerUUID)) {
-            if (!pathFile.delete()) {
-                TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
+        synchronized (ioLock) {
+            if (!pathFile.exists()) {
                 return false;
             }
-            return true;
-        }
 
-        boolean removed = pathData.getSharedWith().remove(playerUUID);
-        if (removed) {
-            savePath(pathData);
+            PathData pathData;
+            try (FileReader reader = new FileReader(pathFile)) {
+                pathData = gson.fromJson(reader, PathData.class);
+            } catch (IOException e) {
+                TrailblazerPlugin.getPluginLogger().severe("Failed to read path for deletion: " + pathId);
+                e.printStackTrace();
+                return false;
+            }
+
+            if (pathData == null) {
+                return false;
+            }
+
+            if (pathData.getOwnerUUID().equals(playerUUID)) {
+                if (!pathFile.delete()) {
+                    TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
+                    return false;
+                }
+                return true;
+            }
+
+            boolean removed = pathData.getSharedWith().remove(playerUUID);
+            if (removed) {
+                savePath(pathData);
+            }
+            return removed;
         }
-        return removed;
     }
 
     public SharedCopyResult ensureSharedCopy(PathData source, UUID targetUuid, String targetName) {
         if (source == null || targetUuid == null || targetName == null || targetName.isBlank()) {
             throw new IllegalArgumentException("Source path, target UUID, and target name must be provided");
         }
-        List<PathData> existing = loadPaths(targetUuid);
+        List<PathData> existing;
+        synchronized (ioLock) {
+            existing = loadPaths(targetUuid);
+        }
         UUID originPathId = resolveOriginPathId(source);
         Optional<PathData> alreadyOwned = existing.stream()
                 .filter(p -> targetUuid.equals(p.getOwnerUUID()))
@@ -119,7 +131,9 @@ public class PathDataManager {
         PathData copy = new PathData(UUID.randomUUID(), newName, targetUuid, targetName,
                 System.currentTimeMillis(), source.getDimension(), copiedPoints, source.getColorArgb());
         copy.setOrigin(originPathId, resolveOriginOwner(source), resolveOriginOwnerName(source));
-        savePath(copy);
+        synchronized (ioLock) {
+            savePath(copy);
+        }
         return new SharedCopyResult(copy, true);
     }
 
