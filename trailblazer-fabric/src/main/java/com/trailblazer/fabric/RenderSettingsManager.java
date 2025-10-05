@@ -11,8 +11,8 @@ import net.minecraft.text.Text;
  */
 public class RenderSettingsManager {
 
-    private RenderMode currentMode = RenderMode.PARTICLE_TRAIL;
-    private double markerSpacing = 3.0;
+    private RenderMode currentMode = RenderMode.DASHED_LINE;
+    private double markerSpacing = 1.0;
 
     public RenderMode getRenderMode() {
         return currentMode;

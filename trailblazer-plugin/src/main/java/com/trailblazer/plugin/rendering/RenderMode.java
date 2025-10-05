@@ -8,10 +8,10 @@ import java.util.Optional;
  */
 public enum RenderMode {
     /**
-     * Renders the path as a continuous trail of particles.
-     * NOTE: This is very performance-intensive on the server.
+     * Renders the path as a dashed line using particles.
+     * Server-side fallback for the client's quad-based dashed line.
      */
-    PARTICLE_TRAIL,
+    DASHED_LINE,
 
     /**
      * Renders particles at spaced intervals.
@@ -28,7 +28,7 @@ public enum RenderMode {
         String n = name.trim().toLowerCase();
         // Accept common aliases for backward compatibility and client-friendly inputs
         return switch (n) {
-            case "trail", "particle", "particles", "particle_trail" -> Optional.of(PARTICLE_TRAIL);
+            case "trail", "dashed", "dash", "dashed_line" -> Optional.of(DASHED_LINE);
             case "markers", "marker", "spaced_markers" -> Optional.of(SPACED_MARKERS);
             case "arrows", "arrow", "directional_arrows" -> Optional.of(DIRECTIONAL_ARROWS);
             default -> {

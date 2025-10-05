@@ -134,10 +134,10 @@ public final class TrailblazerCommand {
     }
 
     private static final Map<String, RenderMode> MODE_ALIASES = Map.ofEntries(
-        Map.entry("trail", RenderMode.PARTICLE_TRAIL),
-        Map.entry("particle", RenderMode.PARTICLE_TRAIL),
-        Map.entry("particles", RenderMode.PARTICLE_TRAIL),
-        Map.entry("particle_trail", RenderMode.PARTICLE_TRAIL),
+        Map.entry("trail", RenderMode.DASHED_LINE),
+        Map.entry("dashed", RenderMode.DASHED_LINE),
+        Map.entry("dash", RenderMode.DASHED_LINE),
+        Map.entry("dashed_line", RenderMode.DASHED_LINE),
         Map.entry("markers", RenderMode.SPACED_MARKERS),
         Map.entry("marker", RenderMode.SPACED_MARKERS),
         Map.entry("spaced_markers", RenderMode.SPACED_MARKERS),

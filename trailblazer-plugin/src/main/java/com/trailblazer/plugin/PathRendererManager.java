@@ -67,8 +67,8 @@ public class PathRendererManager {
                 RenderMode currentMode = plugin.getPlayerRenderSettingsManager().getRenderMode(player);
 
                 switch (currentMode) {
-                    case PARTICLE_TRAIL:
-                        renderInterpolatedParticleTrail(player, path, world);
+                    case DASHED_LINE:
+                        renderDashedLineParticles(player, path, world);
                         break;
                     case SPACED_MARKERS:
                         renderSpacedMarkers(player, path, world);
@@ -90,20 +90,32 @@ public class PathRendererManager {
         }
     }
 
-    private void renderInterpolatedParticleTrail(Player player, PathData path, World world) {
+    private void renderDashedLineParticles(Player player, PathData path, World world) {
         List<Vector3d> points = path.getPoints();
         final Particle.DustOptions dust = dustFor(path.getColorArgb());
+        
+        // Render dashed segments using particles (server-side fallback)
+        double dashLength = 2.0; // Length of each dash
+        double gapLength = 1.0;  // Length of each gap
+        double segmentLength = dashLength + gapLength;
+        
         for (int i = 0; i < points.size() - 1; i++) {
             Vector start = new Vector(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
             Vector end = new Vector(points.get(i + 1).getX(), points.get(i + 1).getY(), points.get(i + 1).getZ());
 
-            double distance = start.distance(end);
-            if (distance < 0.1) continue;
+            double totalDistance = start.distance(end);
+            if (totalDistance < 0.1) continue;
             Vector direction = end.subtract(start).normalize();
             
-            for (double d = 0; d < distance; d += 0.25) {
-                Vector pos = start.add(direction.multiply(d));
-                player.spawnParticle(Particle.DUST, pos.toLocation(world), 1, dust);
+            // Create dashes along the segment
+            for (double d = 0; d < totalDistance; d += segmentLength) {
+                double dashEnd = Math.min(d + dashLength, totalDistance);
+                
+                // Render particles only within the dash portion (not the gap)
+                for (double dashPos = d; dashPos < dashEnd; dashPos += 0.5) {
+                    Vector pos = start.add(direction.multiply(dashPos));
+                    player.spawnParticle(Particle.DUST, pos.toLocation(world), 1, dust);
+                }
             }
         }
     }

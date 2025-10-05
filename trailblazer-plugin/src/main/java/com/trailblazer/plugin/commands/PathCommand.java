@@ -167,6 +167,10 @@ public class PathCommand implements CommandExecutor {
     }
 
     private void handleInfo(Player player, String[] args) {
+        if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+            player.sendMessage(Component.text("You have the client mod. Use the client '/trailblazer info' command instead.", NamedTextColor.YELLOW));
+            return;
+        }
         if (args.length < 2) {
             player.sendMessage(Component.text("Usage: /trailblazer info <name> (use quotes for names with spaces)", NamedTextColor.RED));
             return;
@@ -254,6 +258,10 @@ public class PathCommand implements CommandExecutor {
     }
 
     private void handleDelete(Player player, String[] args) {
+        if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+            player.sendMessage(Component.text("You have the client mod. Use the client '/trailblazer delete' command instead.", NamedTextColor.YELLOW));
+            return;
+        }
         if (args.length < 2) {
             player.sendMessage(Component.text("Usage: /trailblazer delete <name> (quote names with spaces)", NamedTextColor.RED));
             return;
@@ -320,6 +328,10 @@ public class PathCommand implements CommandExecutor {
     }
 
     private void handleRename(Player player, String[] args) {
+        if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+            player.sendMessage(Component.text("You have the client mod. Use the client '/trailblazer rename' command instead.", NamedTextColor.YELLOW));
+            return;
+        }
         if (args.length < 3) {
             player.sendMessage(Component.text("Usage: /trailblazer rename <oldName> <newName> (quote names with spaces)", NamedTextColor.RED));
             return;

@@ -19,7 +19,7 @@ public class PlayerRenderSettingsManager {
      * @return The player's selected RenderMode, or CONTINUOUS if they haven't chosen one.
      */
     public RenderMode getRenderMode(Player player) {
-        return playerRenderModes.getOrDefault(player.getUniqueId(), RenderMode.PARTICLE_TRAIL);
+        return playerRenderModes.getOrDefault(player.getUniqueId(), RenderMode.DASHED_LINE);
     }
 
     /**
