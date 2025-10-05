@@ -245,11 +245,10 @@ public class PathRenderer {
      * Renders the path as arrows indicating direction.
      */
     private void renderDirectionalArrows(PathData path, ClientWorld world, boolean isLive) {
-        double spacing = renderSettingsManager.getMarkerSpacing();
+        // Use the server's arrow spacing to keep behavior consistent between client and server.
+        double spacing = 3.0;
         double distanceSinceLastMarker = 0.0;
         Vec3d lastPoint = null;
-        final int color = path.getColorArgb();
-        final DustParticleEffect trailEffect = effectFor(color);
 
         List<Vector3d> points = path.getPoints();
         for (int i = 0; i < points.size(); i++) {
@@ -261,11 +260,12 @@ public class PathRenderer {
             }
 
             if (lastPoint == null || distanceSinceLastMarker >= spacing) {
-                // Find the next point to determine direction
+                // Match server fallback: spawn a single FLAME particle and give it velocity in
+                // the direction of travel instead of drawing explicit wings/tip geometry.
                 Optional<Vec3d> nextPointOpt = findNextDistinctPoint(points, i);
                 if (nextPointOpt.isPresent()) {
                     Vec3d direction = nextPointOpt.get().subtract(currentPoint).normalize();
-                    spawnArrow(world, currentPoint, direction, isLive, trailEffect);
+                    spawnArrow(world, currentPoint, direction);
                 }
                 distanceSinceLastMarker = 0.0; // Reset distance
             }
@@ -290,30 +290,14 @@ public class PathRenderer {
     /**
      * Spawns a small arrow shape using particles.
      */
-    private void spawnArrow(ClientWorld world, Vec3d position, Vec3d direction, boolean isLive, DustParticleEffect trailEffect) {
-        // The main point of the arrow tip
-        if (isLive) {
-            world.addParticle(ParticleTypes.FLAME, position.x, position.y, position.z, 0, 0, 0);
-        } else {
-            world.addParticle(trailEffect, position.x, position.y, position.z, 0, 0, 0);
-        }
+    private void spawnArrow(ClientWorld world, Vec3d position, Vec3d direction) {
+        // Server fallback: spawn a single FLAME particle and give it velocity in the
+        // path direction. Scale the velocity to approximately match the server extra speed.
+        double speed = 0.1; // matches the server-side extra parameter
+        double vx = direction.x * speed;
+        double vy = direction.y * speed;
+        double vz = direction.z * speed;
 
-        // Calculate a perpendicular vector for the arrow wings
-        Vec3d perpendicular = new Vec3d(-direction.z, 0, direction.x).normalize();
-        if (perpendicular.lengthSquared() < 0.1) { // Handle case where direction is mostly vertical
-            perpendicular = new Vec3d(1, 0, 0);
-        }
-
-        // Two wing points, spaced wider and further back
-        Vec3d wing1 = position.subtract(direction.multiply(0.6)).add(perpendicular.multiply(0.4));
-        Vec3d wing2 = position.subtract(direction.multiply(0.6)).subtract(perpendicular.multiply(0.4));
-
-        if (isLive) {
-            world.addParticle(ParticleTypes.SOUL_FIRE_FLAME, wing1.x, wing1.y, wing1.z, 0, 0, 0);
-            world.addParticle(ParticleTypes.SOUL_FIRE_FLAME, wing2.x, wing2.y, wing2.z, 0, 0, 0);
-        } else {
-            world.addParticle(trailEffect, wing1.x, wing1.y, wing1.z, 0, 0, 0);
-            world.addParticle(trailEffect, wing2.x, wing2.y, wing2.z, 0, 0, 0);
-        }
+        world.addParticle(ParticleTypes.FLAME, position.x, position.y, position.z, vx, vy, vz);
     }
 }

@@ -67,6 +67,9 @@ public class PathCommand implements CommandExecutor {
             case "rendermode":
                 handleRenderMode(player, args);
                 break;
+            case "spacing":
+                handleSpacing(player, args);
+                break;
             case "share":
                 handleShare(player, args);
                 break;
@@ -369,7 +372,7 @@ public class PathCommand implements CommandExecutor {
             RenderMode currentMode = renderSettingsManager.getRenderMode(player);
             player.sendMessage(Component.text("Your current render mode is " + currentMode.name() + ".", NamedTextColor.GRAY));
             // Show the three canonical, client-friendly aliases for consistency with the client commands
-            player.sendMessage(Component.text("Usage: /path rendermode <trail | markers | arrows>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /path rendermode <trail | arrows>", NamedTextColor.RED));
             return;
         }
 
@@ -381,6 +384,30 @@ public class PathCommand implements CommandExecutor {
             player.sendMessage(Component.text("Render mode set to " + modeOpt.get().name(), NamedTextColor.GREEN));
         } else {
             player.sendMessage(Component.text("Invalid render mode: " + modeName, NamedTextColor.RED));
+        }
+    }
+
+    private void handleSpacing(Player player, String[] args) {
+        if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
+            player.sendMessage(Component.text("Client mod handles spacing. Use the client UI if available.", NamedTextColor.YELLOW));
+            return;
+        }
+        if (args.length < 2) {
+            double current = renderSettingsManager.getMarkerSpacing(player);
+            player.sendMessage(Component.text("Current marker spacing: " + current + " blocks.", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Usage: /trailblazer spacing <blocks> (e.g. 1.0, 2.5)", NamedTextColor.RED));
+            return;
+        }
+        try {
+            double spacing = Double.parseDouble(args[1]);
+            if (spacing <= 0) {
+                player.sendMessage(Component.text("Spacing must be positive.", NamedTextColor.RED));
+                return;
+            }
+            renderSettingsManager.setMarkerSpacing(player, spacing);
+            player.sendMessage(Component.text("Marker spacing set to " + spacing + " blocks.", NamedTextColor.GREEN));
+        } catch (NumberFormatException ex) {
+            player.sendMessage(Component.text("Invalid number: " + args[1], NamedTextColor.RED));
         }
     }
 
@@ -480,6 +507,7 @@ public class PathCommand implements CommandExecutor {
         player.sendMessage(Component.text("/trailblazer rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path you own", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
+    player.sendMessage(Component.text("/trailblazer spacing <blocks>", NamedTextColor.YELLOW).append(Component.text(" - Set marker spacing for server fallback (e.g. 3.0)", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
         if (plugin.getServerPacketHandler() != null) {
             player.sendMessage(Component.text("/trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.YELLOW).append(Component.text(" - Server-side path recording (unmodded clients only)", NamedTextColor.WHITE)));

@@ -13,10 +13,7 @@ public enum RenderMode {
      */
     DASHED_LINE,
 
-    /**
-     * Renders particles at spaced intervals.
-     */
-    SPACED_MARKERS,
+    // Note: server fallback intentionally omits spaced markers — keep only dashed line and arrows.
 
     /**
      * Renders arrows at spaced intervals to show direction.
@@ -29,7 +26,7 @@ public enum RenderMode {
         // Accept common aliases for backward compatibility and client-friendly inputs
         return switch (n) {
             case "trail", "dashed", "dash", "dashed_line" -> Optional.of(DASHED_LINE);
-            case "markers", "marker", "spaced_markers" -> Optional.of(SPACED_MARKERS);
+            // intentionally do not accept 'markers' on the server fallback
             case "arrows", "arrow", "directional_arrows" -> Optional.of(DIRECTIONAL_ARROWS);
             default -> {
                 // Fallback to matching enum name

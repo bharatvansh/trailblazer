@@ -16,7 +16,7 @@ public class PathTabCompleter implements TabCompleter {
 
     private final PathDataManager pathDataManager;
     // Include 'help' so tab completion suggests it for server-side users as well
-    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "list", "delete", "rename", "rendermode", "share", "color", "info", "record", "help");
+    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "list", "delete", "rename", "rendermode", "share", "color", "info", "record", "spacing", "help");
     private static final List<String> RECORD_SUB = List.of("start","stop","cancel","status");
 
     public PathTabCompleter(PathDataManager pathDataManager) {
@@ -60,7 +60,7 @@ public class PathTabCompleter implements TabCompleter {
                 .collect(Collectors.toList());
             return StringUtil.copyPartialMatches(args[1], suggestions, new ArrayList<>());
                 case "rendermode":
-                    return StringUtil.copyPartialMatches(args[1], List.of("trail", "markers", "arrows"), new ArrayList<>());
+                    return StringUtil.copyPartialMatches(args[1], List.of("trail", "arrows"), new ArrayList<>());
         case "color":
             var colorSuggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(pathDataManager.loadPaths(player.getUniqueId()).stream(), args[1], 50).stream()
                 .map(n -> n.contains(" ") ? ('"' + n + '"') : n)

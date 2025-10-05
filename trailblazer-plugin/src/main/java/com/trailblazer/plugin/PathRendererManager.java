@@ -28,7 +28,7 @@ public class PathRendererManager {
 
     private final Map<UUID, BukkitTask> activeRenderTasks = new ConcurrentHashMap<>();
     private final TrailblazerPlugin plugin;
-    private final double markerSpacing = 3.0;
+    // Per-player spacing is read from PlayerRenderSettingsManager to allow parity with client settings.
     private static final java.util.Map<Integer, Particle.DustOptions> DUST_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
     private static Particle.DustOptions dustFor(int argb) {
         return DUST_CACHE.computeIfAbsent(argb, c -> {
@@ -70,11 +70,12 @@ public class PathRendererManager {
                     case DASHED_LINE:
                         renderDashedLineParticles(player, path, world);
                         break;
-                    case SPACED_MARKERS:
-                        renderSpacedMarkers(player, path, world);
-                        break;
                     case DIRECTIONAL_ARROWS:
                         renderDirectionalArrows(player, path, world);
+                        break;
+                    default:
+                        // Unknown or unsupported mode for server fallback — default to dashed line.
+                        renderDashedLineParticles(player, path, world);
                         break;
                 }
             }
@@ -93,6 +94,17 @@ public class PathRendererManager {
     private void renderDashedLineParticles(Player player, PathData path, World world) {
         List<Vector3d> points = path.getPoints();
         final Particle.DustOptions dust = dustFor(path.getColorArgb());
+        // Detect if this path corresponds to an active recording owned by the same player — used
+        // to decide whether to render live-style visuals.
+        boolean isLive = false;
+        var active = plugin.getRecordingManager().getActive(path.getOwnerUUID());
+        if (active != null) {
+            try {
+                if (active.pathId.equals(path.getPathId())) {
+                    isLive = true;
+                }
+            } catch (Throwable ignored) { }
+        }
         
         // Render dashed segments using particles (server-side fallback)
         double dashLength = 2.0; // Length of each dash
@@ -114,35 +126,24 @@ public class PathRendererManager {
                 // Render particles only within the dash portion (not the gap)
                 for (double dashPos = d; dashPos < dashEnd; dashPos += 0.5) {
                     Vector pos = start.add(direction.multiply(dashPos));
-                    player.spawnParticle(Particle.DUST, pos.toLocation(world), 1, dust);
+                    if (isLive) {
+                        // For live visuals, use a flame particle for stronger contrast similar to the client.
+                        player.spawnParticle(Particle.FLAME, pos.toLocation(world), 1, 0, 0, 0, 0);
+                    } else {
+                        player.spawnParticle(Particle.DUST, pos.toLocation(world), 1, dust);
+                    }
                 }
             }
         }
     }
 
-    private void renderSpacedMarkers(Player player, PathData path, World world) {
-        double distanceSinceLastMarker = 0.0;
-        Vector lastPoint = null;
-
-        for (Vector3d point : path.getPoints()) {
-            Vector currentPoint = new Vector(point.getX(), point.getY(), point.getZ());
-            if (lastPoint != null) {
-                distanceSinceLastMarker += lastPoint.distance(currentPoint);
-            }
-
-            if (lastPoint == null || distanceSinceLastMarker >= markerSpacing) {
-                // Using END_ROD for a much more solid, "static" looking marker.
-                player.spawnParticle(Particle.END_ROD, currentPoint.toLocation(world), 1, 0, 0, 0, 0);
-                distanceSinceLastMarker = 0.0;
-            }
-            lastPoint = currentPoint;
-        }
-    }
+    // Spaced markers intentionally unsupported in server fallback — client handles this mode when available.
 
     private void renderDirectionalArrows(Player player, PathData path, World world) {
         double distanceSinceLastMarker = 0.0;
         Vector lastPoint = null;
         List<Vector3d> points = path.getPoints();
+        double spacing = plugin.getPlayerRenderSettingsManager().getMarkerSpacing(player);
 
         for (int i = 0; i < points.size(); i++) {
             Vector currentPoint = new Vector(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
@@ -151,7 +152,7 @@ public class PathRendererManager {
                 distanceSinceLastMarker += lastPoint.distance(currentPoint);
             }
 
-            if (lastPoint == null || distanceSinceLastMarker >= markerSpacing) {
+            if (lastPoint == null || distanceSinceLastMarker >= spacing) {
                 findNextDistinctPoint(points, i).ifPresent(nextPoint -> {
                     Vector direction = nextPoint.subtract(currentPoint).normalize();
                     // NEW LOGIC: Spawn one particle and give it velocity for a clear direction.
