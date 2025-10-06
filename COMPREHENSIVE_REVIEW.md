@@ -44,6 +44,8 @@ id 'fabric-loom' version '1.10-SNAPSHOT'
 id 'fabric-loom' version '1.9.2' // or latest stable
 ```
 
+> **Review Comment:** This fix is correct - using SNAPSHOT versions creates build instability. Switching to stable releases ensures consistent builds across different environments and times.
+
 ### 1.2 Thread Safety in PathDataManager
 
 **Problem:** Mixed synchronization granularity with coarse `ioLock`
@@ -65,6 +67,8 @@ public void savePath(PathData path) {
 }
 ```
 
+> **Review Comment:** The per-path locking solution is appropriate and solves the bottleneck while maintaining thread safety. This allows concurrent saves of different paths.
+
 ### 1.3 Missing Error Recovery in Network Communication
 
 **Problem:** No retry logic or graceful degradation when plugin messages fail
@@ -80,6 +84,8 @@ private final Long acknowledgedSequence;
 private final Map<UUID, PriorityQueue<PendingMessage>> pendingByPlayer = new ConcurrentHashMap<>();
 ```
 
+> **Review Comment:** Retry logic with acknowledgments is the correct approach for reliable delivery. The suggested implementation provides good foundation for handling network instability.
+
 ### 1.4 Path Point Limit Not Enforced Uniformly
 
 **Problem:** Server `RecordingManager` and client have different enforcement
@@ -94,6 +100,8 @@ if (rec.points.size() >= maxPointsPerPath) {
     return;
 }
 ```
+
+> **Review Comment:** Adding user notification is essential - silent failures create confusion. The fix properly informs users and auto-saves their work.
 
 ### 1.5 Potential Memory Leak in PathRendererManager
 
@@ -113,6 +121,8 @@ public void stopRendering(Player player) {
     }
 }
 ```
+
+> **Review Comment:** The try-catch ensures task removal even on exception. This fix correctly prevents memory leaks from failed task cancellations.
 
 ### 1.6 JSON Deserialization Without Validation
 
@@ -137,12 +147,16 @@ private boolean isValidPathData(PathData path) {
 }
 ```
 
+> **Review Comment:** Post-deserialization validation is critical for security. The validation checks cover essential fields and prevents malformed data from crashing the system.
+
 ### 1.7 Resource Leaks in File Operations
 
 **Problem:** Some file operations don't use try-with-resources consistently
 - **File:** `PathDataManager.java:82-90`
 - **Impact:** File handles may not close on exception
 - **Fix:** All file I/O should use try-with-resources (already done in most places, ensure consistency)
+
+> **Review Comment:** Try-with-resources is Java's best practice for resource management. Ensuring consistency across all file operations prevents resource leaks.
 
 ### 1.8 VarInt Reading Without Bounds Check Could Hang
 
@@ -157,6 +171,8 @@ private static int readVarInt(ByteBuffer buffer) {
     // ... rest of implementation
 }
 ```
+
+> **Review Comment:** Buffer bounds checking before reading is correct. Combined with existing iteration limit, this provides good protection against malformed data.
 
 ### 1.9 Missing Null Checks in ClientPathManager
 
@@ -176,6 +192,8 @@ public void startRecordingLocal() {
 }
 ```
 
+> **Review Comment:** Defensive null checks are essential for client-side code where timing can be unpredictable. This prevents crashes during initialization or world transitions.
+
 ### 1.10 Race Condition in applyServerSync
 
 **Problem:** `ClientPathManager.applyServerSync` modifies collections while iterating
@@ -188,6 +206,8 @@ for (UUID id : new ArrayList<>(previouslyKnown)) {
     // ...
 }
 ```
+
+> **Review Comment:** Creating a defensive copy before modification is the correct solution. This prevents ConcurrentModificationException while maintaining code clarity.
 
 ---
 

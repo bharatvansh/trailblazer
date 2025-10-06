@@ -28,7 +28,7 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.1: Mod Installation Reliability
+### Fix 1.1: Build System Issues - Mod Installation Reliability
 
 **What happens now:**
 - Sometimes when you try to install or update Trailblazer, it fails to download
@@ -44,7 +44,7 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.2: Multiple Players Recording at Once
+### Fix 1.2: Thread Safety in PathDataManager - Multiple Players Recording at Once
 
 **What happens now:**
 - If many players record paths at the same time on a server, things slow down
@@ -64,7 +64,7 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.3: Lost Paths from Network Issues
+### Fix 1.3: Missing Error Recovery in Network Communication - Lost Paths from Network Issues
 
 **What happens now:**
 - If your internet hiccups while recording, you might lose your path
@@ -84,7 +84,7 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.4: Confusion About Recording Limits
+### Fix 1.4: Path Point Limit Not Enforced Uniformly - Confusion About Recording Limits
 
 **What happens now:**
 - You're recording a path, and suddenly it stops adding points
@@ -104,7 +104,7 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.5: Server Memory Leaks
+### Fix 1.5: Potential Memory Leak in PathRendererManager - Server Memory Leaks
 
 **What happens now:**
 - If there's an error while showing a path to a vanilla player (without the mod), memory slowly leaks
@@ -124,7 +124,7 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.6: Protection from Corrupted Path Files
+### Fix 1.6: JSON Deserialization Without Validation - Protection from Corrupted Path Files
 
 **What happens now:**
 - If a path file gets corrupted (bad edit, disk error, etc.), it might crash the server
@@ -145,7 +145,47 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.7: Null Pointer Crashes
+### Fix 1.7: Resource Leaks in File Operations - File Handle Management
+
+**What happens now:**
+- Rarely, if file operations fail mid-process, file handles might not close properly
+- Over time on a busy server, this could accumulate and exhaust file handles
+- May cause "Too many open files" errors after extended operation
+
+**What will happen after:**
+- All file operations use proper cleanup (try-with-resources pattern)
+- Even if errors occur, files are always closed properly
+- Server stays stable regardless of file operation failures
+
+**Why it matters:** Prevents rare but serious server issues from file handle exhaustion.
+
+**Example Scenario:**
+- **Before:** After 2 weeks of server operation with occasional disk errors, you get "Too many open files" and server freezes.
+- **After:** Same conditions. Server handles it gracefully, no accumulation of open files.
+
+---
+
+### Fix 1.8: VarInt Reading Without Bounds Check - Network Data Safety
+
+**What happens now:**
+- A corrupted or malicious network packet could cause the server to spin in a loop
+- High CPU usage if malformed data is received
+- Potential for denial-of-service if exploited
+
+**What will happen after:**
+- Strict validation before processing network data
+- Malformed packets rejected immediately
+- Server protected from bad data
+
+**Why it matters:** Server security and stability against corrupted or malicious data.
+
+**Example Scenario:**
+- **Before:** Corrupted network packet received. Server CPU spikes to 100% for 5 seconds trying to parse it.
+- **After:** Same packet. Rejected instantly: "Invalid data format." No CPU spike.
+
+---
+
+### Fix 1.9: Missing Null Checks in ClientPathManager - Null Pointer Crashes
 
 **What happens now:**
 - Sometimes if you open the path menu at exactly the wrong moment (while joining server, etc.), the game crashes
@@ -165,7 +205,7 @@ These changes make Trailblazer more stable and prevent crashes or weird behavior
 
 ---
 
-### Fix 1.8: Race Condition in Path List
+### Fix 1.10: Race Condition in applyServerSync - Path List Synchronization
 
 **What happens now:**
 - Very rarely, if you receive new paths from the server while opening your path menu, the game crashes
@@ -191,7 +231,7 @@ These changes make Trailblazer faster and use less resources.
 
 ---
 
-### Improvement 2.1: Better Path Rendering for Vanilla Players
+### Optimization 2.1: Path Rendering Performance - Better Path Rendering for Vanilla Players
 
 **What happens now:**
 - When showing paths to players without the mod (using particles), server sends particles 10 times per second
@@ -213,47 +253,7 @@ These changes make Trailblazer faster and use less resources.
 
 ---
 
-### Improvement 2.2: Faster World Joining
-
-**What happens now:**
-- When you join a world/server with 50 saved paths, it takes 3-5 seconds to load them all
-- During this time, you see "Loading terrain" for longer than normal
-- Each path loads individually, one after another
-
-**What will happen after:**
-- System loads only basic info first (names, IDs) - takes 0.5 seconds
-- Full path data loads in background as needed
-- You see your world almost instantly
-
-**Why it matters:** Faster world joins - less waiting time.
-
-**Example Scenario:**
-- **Before:** You have 80 saved paths. Join your singleplayer world. "Loading terrain..." takes 7 seconds while paths load.
-- **After:** Same 80 paths. "Loading terrain..." takes 2 seconds. World appears. Paths load quietly in background.
-
----
-
-### Improvement 2.3: Smaller Path Files
-
-**What happens now:**
-- A typical 1,000-point path file is 80KB
-- Your world folder with 100 paths uses 8MB just for paths
-- Sharing a long path with a friend sends 150KB of data
-
-**What will happen after:**
-- Same 1,000-point path is now only 25KB (70% smaller!)
-- 100 paths use only 2.5MB
-- Sharing sends only 45KB of data
-
-**Why it matters:** Faster syncing, less disk space, quicker sharing.
-
-**Example Scenario:**
-- **Before:** You share your elaborate base tour (4,000 points, 320KB) with 3 friends on a slow connection. Takes 30 seconds each. Server bandwidth usage spikes.
-- **After:** Same tour, now 100KB. Takes 8 seconds each. Barely noticeable bandwidth use.
-
----
-
-### Improvement 2.4: Batch Saving
+### Optimization 2.2: Batch JSON Serialization - Batch Saving
 
 **What happens now:**
 - Every tiny change to a path (rename, color change, etc.) immediately saves to disk
@@ -273,7 +273,103 @@ These changes make Trailblazer faster and use less resources.
 
 ---
 
-### Improvement 2.5: Smart Path Simplification
+### Optimization 2.3: Lazy Loading for Large Path Collections - Faster World Joining
+
+**What happens now:**
+- When you join a world/server with 50 saved paths, it takes 3-5 seconds to load them all
+- During this time, you see "Loading terrain" for longer than normal
+- Each path loads individually, one after another
+
+**What will happen after:**
+- System loads only basic info first (names, IDs) - takes 0.5 seconds
+- Full path data loads in background as needed
+- You see your world almost instantly
+
+**Why it matters:** Faster world joins - less waiting time.
+
+**Example Scenario:**
+- **Before:** You have 80 saved paths. Join your singleplayer world. "Loading terrain..." takes 7 seconds while paths load.
+- **After:** Same 80 paths. "Loading terrain..." takes 2 seconds. World appears. Paths load quietly in background.
+
+---
+
+### Optimization 2.4: Client-Side Path Caching - Faster Startup
+
+**What happens now:**
+- Every time you start the game or join a world, paths must be parsed from JSON
+- 100 paths = parsing 8MB of JSON text every time
+- Adds 2-3 seconds to startup time
+
+**What will happen after:**
+- Paths cached in faster binary format alongside JSON
+- 100 paths load in 0.3 seconds instead of 3 seconds
+- First load still takes time, but subsequent loads are instant
+
+**Why it matters:** Much faster game/world startup with many paths.
+
+**Example Scenario:**
+- **Before:** You restart Minecraft. Have to wait 3 extra seconds while your 150 paths load.
+- **After:** Restart. Paths load in 0.3 seconds. Back in game instantly.
+
+---
+
+### Optimization 2.5: Optimize Color Assignment - Color Calculation Efficiency
+
+**What happens now:**
+- Every time a path is displayed, color is recalculated from the path ID
+- With 50 visible paths, that's 50 calculations per render frame
+- Minor performance cost but unnecessary
+
+**What will happen after:**
+- Colors calculated once and cached
+- No recalculation needed - just look up the cached value
+- Tiny performance improvement, but free optimization
+
+**Why it matters:** Small but free performance gain.
+
+---
+
+### Optimization 2.6: Reduce Network Payload Size - Network Efficiency
+
+**What happens now:**
+- When you rename a path, entire path data (including all points) sent to server
+- A 2,000-point path rename sends 160KB for a simple name change
+- Wastes bandwidth
+
+**What will happen after:**
+- Only the changed data is sent (just the new name)
+- Same rename sends 50 bytes instead of 160KB
+- Much more efficient network usage
+
+**Why it matters:** Faster sync, less bandwidth, better for slow connections.
+
+**Example Scenario:**
+- **Before:** Rename path on slow mobile hotspot. Takes 4 seconds to sync the 160KB update.
+- **After:** Same rename. Syncs in 0.1 seconds (50 bytes).
+
+---
+
+### Optimization 2.7: Path Point Compression - Smaller Path Files
+
+**What happens now:**
+- A typical 1,000-point path file is 80KB
+- Your world folder with 100 paths uses 8MB just for paths
+- Sharing a long path with a friend sends 150KB of data
+
+**What will happen after:**
+- Same 1,000-point path is now only 25KB (70% smaller!)
+- 100 paths use only 2.5MB
+- Sharing sends only 45KB of data
+
+**Why it matters:** Faster syncing, less disk space, quicker sharing.
+
+**Example Scenario:**
+- **Before:** You share your elaborate base tour (4,000 points, 320KB) with 3 friends on a slow connection. Takes 30 seconds each. Server bandwidth usage spikes.
+- **After:** Same tour, now 100KB. Takes 8 seconds each. Barely noticeable bandwidth use.
+
+---
+
+### Optimization 2.8: Implement Path Simplification - Smart Path Simplification
 
 **What happens now:**
 - Recording a path while walking straight creates hundreds of nearly identical points
@@ -299,7 +395,7 @@ Completely new capabilities that will be added.
 
 ---
 
-### Feature 3.1: Path Statistics
+### Feature 3.1: Path Analytics and Statistics - Path Statistics
 
 **What you'll be able to do:**
 - See how far you traveled: "Total distance: 1,847 blocks"
@@ -320,7 +416,7 @@ You record your search for a Stronghold. Stats show: "Distance: 3,456 blocks | T
 
 ---
 
-### Feature 3.2: Waypoints on Paths
+### Feature 3.2: Waypoint System - Waypoints on Paths
 
 **What you'll be able to do:**
 - Mark important spots while recording: "Found village here!"
@@ -340,7 +436,7 @@ Recording a mining trip. You mark: "Diamonds here!" → "Water source" → "Conn
 
 ---
 
-### Feature 3.3: Path Categories & Tags
+### Feature 3.3: Path Categories/Tags - Path Categories & Tags
 
 **What you'll be able to do:**
 - Organize paths: "Mining Routes," "Exploration," "Daily Travels"
@@ -360,7 +456,26 @@ You have 75 paths. Click "Category: Farms" filter. Now you see only your 8 farmi
 
 ---
 
-### Feature 3.4: Path Replay (Playback)
+### Feature 3.4: Path Templates and Reusable Routes - Path Templates
+
+**What you'll be able to do:**
+- Save paths as reusable templates
+- Instance templates with offsets: "Farm Route Template" → copy and shift to new location
+- Great for repeated builds or multiple similar paths
+
+**How to use it:**
+- Create a path, mark as "Template"
+- Later: "New Path from Template" → select template → apply offset
+- Template copies with all your waypoints and settings
+
+**Why it's cool:** Reuse successful path designs in different locations.
+
+**Example:**
+You create the perfect mining spiral path. Save as template. Use it for 3 different mines, just shifted to different coordinates.
+
+---
+
+### Feature 3.5: Multi-Player Collaborative Paths - Collaborative Paths
 
 **What you'll be able to do:**
 - Play back your path like a movie
@@ -381,7 +496,28 @@ You found an awesome hidden valley. Instead of explaining "Go north, then west a
 
 ---
 
-### Feature 3.5: Export to GPS Apps
+### Feature 3.6: Path Replay/Playback - Path Replay (Playback)
+
+**What you'll be able to do:**
+- Play back your path like a movie
+- Watch an invisible player follow your exact steps
+- Adjustable speed: 1x, 2x, 5x, 10x speed
+- Perfect for sharing "how I got here" with friends
+
+**How to use it:**
+- Select a path
+- Click "Replay Path"
+- A ghost player follows your route
+- You can fly around and watch from any angle
+
+**Why it's cool:** Show friends complicated routes, create cinematic videos, review your own travels.
+
+**Example:**
+You found an awesome hidden valley. Instead of explaining "Go north, then west at the big oak, then..." you just share your path and say "Watch the replay!"
+
+---
+
+### Feature 3.7: Path Export/Import Formats - Export to GPS Apps
 
 **What you'll be able to do:**
 - Export paths to real GPS formats (GPX, GeoJSON)
@@ -402,7 +538,7 @@ You built an exact replica of Route 66. Export it as GPX. Upload to a Minecraft 
 
 ---
 
-### Feature 3.6: Path Alerts
+### Feature 3.8: Path Alerts and Notifications - Path Alerts
 
 **What you'll be able to do:**
 - Get notified when near a waypoint: "Slime chunk 50 blocks east!"
@@ -442,7 +578,7 @@ Your server builds a perimeter railroad around spawn. 5 players each build a sec
 
 ---
 
-### Feature 3.8: Path History & Versions
+### Feature 3.9: Path Versioning and History - Path History & Versions
 
 **What you'll be able to do:**
 - See all changes to a path over time
@@ -462,7 +598,7 @@ You extended your path to a village, but it ruined the flow. "History" → "Rest
 
 ---
 
-### Feature 3.9: Advanced Rendering
+### Feature 3.10: Advanced Rendering Modes - Advanced Rendering
 
 **What you'll be able to do:**
 
@@ -493,7 +629,7 @@ Your tour path around spawn uses gradient rendering. Blue at start, transitions 
 
 ---
 
-### Feature 3.10: Path Merging & Splitting
+### Feature 3.11: Path Merging and Splitting - Path Merging & Splitting
 
 **What you'll be able to do:**
 
@@ -514,13 +650,100 @@ You have 15 separate paths connecting different bases. Merge them into one "Gran
 
 ---
 
+### Feature 3.12: Permission System Enhancement - Advanced Permissions
+
+**What you'll be able to do:**
+- Server admins can set different permission levels
+- Fine-grained control over who can do what
+- Different ranks get different capabilities
+
+**Permissions available:**
+- Create paths
+- Share paths with others
+- Delete paths
+- Bypass storage quotas
+- View other players' paths (moderator feature)
+
+**Why it's cool:** Server admins can customize exactly what different player ranks can do.
+
+**Example:**
+Server setup:
+- **Normal players:** Create paths, 100 path limit
+- **VIP rank:** Share paths, 200 path limit
+- **Moderators:** View any path for moderation
+- **Admins:** Full access
+
+---
+
+### Feature 3.13: Path Search and Discovery - Advanced Search
+
+**What you'll be able to do:**
+- Search paths by name (partial matching)
+- Filter by distance from your location
+- Search by date created
+- Find paths by owner
+- Search by tags/categories
+
+**How to use it:**
+- Path menu → Search
+- Type query: "mine" → finds all mining-related paths
+- Or: "within:500" → paths within 500 blocks
+- Or: "created:last_week" → recent paths
+
+**Why it's cool:** Find exactly the path you need from hundreds.
+
+**Example:**
+You have 200 paths. Need to find "that iron mine near spawn from 3 weeks ago." Search: "iron near:spawn created:3weeks" → Found instantly!
+
+---
+
+### Feature 3.14: Integration with Minecraft Maps - Map Integration
+
+**What you'll be able to do:**
+- See paths drawn on in-game maps (paper maps)
+- Paths appear as colored lines on wall-mounted maps
+- Great for navigation in your base
+
+**How to use it:**
+- Hold a map
+- Enable "Show paths on map" setting
+- Your paths appear as overlay on the map
+
+**Why it's cool:** Combine Minecraft's mapping with Trailblazer paths.
+
+**Example:**
+You make a wall map room of your territory. Enable path overlay. Now the map shows all your established routes to farms, mines, etc.
+
+---
+
+### Feature 3.15: Performance Profiling Tools - Admin Tools
+
+**What you'll be able to do (Server Admins):**
+- View Trailblazer performance metrics
+- See how many paths/points are loaded
+- Monitor disk usage and RAM usage
+- Debug performance issues
+
+**Command:** `/trailblazer admin stats`
+
+**Shows:**
+- Total paths: 1,245
+- Total points: 2.3 million
+- Disk usage: 180MB
+- Average render time: 2.4ms
+- Paths per player breakdown
+
+**Why it's cool:** Server admins can monitor and optimize Trailblazer usage.
+
+---
+
 ## 4. Safety & Protection
 
 These keep your data safe and prevent abuse.
 
 ---
 
-### Protection 4.1: Path Name Safety
+### Security 4.1: Input Validation and Sanitization - Path Name Safety
 
 **What happens now:**
 - You could name a path with special characters that break things: `<script>hack</script>`
@@ -541,7 +764,7 @@ These keep your data safe and prevent abuse.
 
 ---
 
-### Protection 4.2: Storage Limits (Fair Usage)
+### Security 4.3: Disk Space Quotas - Storage Limits (Fair Usage)
 
 **What happens now:**
 - Someone could create 1,000 paths and use gigabytes of server storage
@@ -562,7 +785,7 @@ These keep your data safe and prevent abuse.
 
 ---
 
-### Protection 4.3: Path Ownership Security
+### Security 4.2: Path Ownership Verification - Path Ownership Security
 
 **What happens now:**
 - When you share a path, there's minimal verification
@@ -583,7 +806,7 @@ These keep your data safe and prevent abuse.
 
 ---
 
-### Protection 4.4: Permission System
+### Security 4.4: Permission Checks for All Operations - Permission System
 
 **What happens now:**
 - Basic permissions: can use plugin or can't
@@ -610,7 +833,27 @@ Server setup:
 
 ---
 
-### Protection 4.5: Audit Logging
+### Security 4.5: Secure Plugin Messaging - Message Authentication
+
+**What happens now:**
+- Messages between client and server are sent without encryption
+- Theoretically, someone could intercept and modify path data in transit
+- No verification that messages haven't been tampered with
+
+**What will happen after:**
+- Messages are authenticated with cryptographic signatures
+- Any tampering is detected and message rejected
+- More secure communication overall
+
+**Why it matters:** Extra security layer for important operations.
+
+**Example Scenario:**
+- **Before:** Path data travels unprotected. Theoretically vulnerable to interception.
+- **After:** All path messages are signed and verified. Tampering detected automatically.
+
+---
+
+### Security 4.6: Audit Logging - Audit Logging
 
 **What happens now:**
 - No record of who did what
