@@ -1,7 +1,6 @@
 package com.trailblazer.fabric.networking.payload.s2c;
 
 import com.trailblazer.fabric.TrailblazerFabricClient;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.packet.CustomPayload;

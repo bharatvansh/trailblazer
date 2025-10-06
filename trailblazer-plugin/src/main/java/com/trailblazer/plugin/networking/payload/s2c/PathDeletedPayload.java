@@ -1,7 +1,5 @@
 package com.trailblazer.plugin.networking.payload.s2c;
 
-import com.trailblazer.api.PathData;
-import com.trailblazer.plugin.TrailblazerPlugin;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.UUID;

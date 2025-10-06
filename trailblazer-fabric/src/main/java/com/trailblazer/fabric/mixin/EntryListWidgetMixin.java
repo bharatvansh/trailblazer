@@ -11,18 +11,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(EntryListWidget.class)
 public abstract class EntryListWidgetMixin {
 
-    @Inject(method = "drawMenuListBackground(Lnet/minecraft/client/gui/DrawContext;)V", at = @At("HEAD"), cancellable = true)
-    private void trailblazer$cancelMenuListBackground(DrawContext context, CallbackInfo ci) {
-        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Trailblazer mixin: cancel EntryListWidget.drawMenuListBackground");
-        ci.cancel();
-    }
-
-    @Inject(method = "drawInWorldMenuListBackground(Lnet/minecraft/client/gui/DrawContext;)V", at = @At("HEAD"), cancellable = true, require = 0)
-    private void trailblazer$cancelInWorldBackground(DrawContext context, CallbackInfo ci) {
-        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Trailblazer mixin: cancel EntryListWidget.drawInWorldMenuListBackground");
-        ci.cancel();
-    }
-
     @Inject(method = "renderDecorations(Lnet/minecraft/client/gui/DrawContext;II)V", at = @At("HEAD"), cancellable = true)
     private void trailblazer$cancelDecorations(DrawContext context, int mouseX, int mouseY, CallbackInfo ci) {
     }
@@ -39,7 +27,7 @@ public abstract class EntryListWidgetMixin {
             target = "Lnet/minecraft/client/gui/widget/EntryListWidget;drawMenuListBackground(Lnet/minecraft/client/gui/DrawContext;)V"
         )
     )
-    private void trailblazer$redirectDrawMenuListBackground(EntryListWidget instance, DrawContext context) {
+    private void trailblazer$redirectDrawMenuListBackground(EntryListWidget<?> instance, DrawContext context) {
     }
 
     @Redirect(
@@ -51,6 +39,6 @@ public abstract class EntryListWidgetMixin {
         ),
         require = 0
     )
-    private void trailblazer$redirectDrawInWorldMenuListBackground(EntryListWidget instance, DrawContext context) {
+    private void trailblazer$redirectDrawInWorldMenuListBackground(EntryListWidget<?> instance, DrawContext context) {
     }
 }
