@@ -6,8 +6,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -43,8 +47,13 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private static final String SHARE_PATH_WITH_PLAYERS_CHANNEL = "trailblazer:share_path_with_players";
     private static final String SHARE_REQUEST_CHANNEL = "trailblazer:share_request";
     private static final String SAVE_PATH_CHANNEL = "trailblazer:save_path";
+    private static final String ACTION_ACK_CHANNEL = "trailblazer:path_action_ack";
+    private static final long RESEND_INTERVAL_TICKS = 40L;
+    private static final long RESEND_INTERVAL_MS = 2000L;
+    private static final int MAX_RETRY_ATTEMPTS = 5;
 
     private final PathDataManager dataManager;
+    private final Map<UUID, ReliableMessageState> reliableStates = new ConcurrentHashMap<>();
 
     public ServerPacketHandler(TrailblazerPlugin plugin) {
         this.plugin = plugin;
@@ -64,10 +73,18 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, "trailblazer:delete_path", this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_PATH_WITH_PLAYERS_CHANNEL, this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ACTION_ACK_CHANNEL, this);
+
+        plugin.getServer().getScheduler().runTaskTimer(plugin, this::resendPendingActionResults, RESEND_INTERVAL_TICKS, RESEND_INTERVAL_TICKS);
     }
 
     @Override
     public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, @NotNull byte[] message) {
+        if (channel.equalsIgnoreCase(ACTION_ACK_CHANNEL)) {
+            handleActionAck(player, message);
+            return;
+        }
+
         plugin.getLogger().info("Received plugin message on channel: " + channel + " from player: " + player.getName());
 
         if (channel.equalsIgnoreCase(HandshakePayload.CHANNEL)) {
@@ -178,13 +195,17 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        moddedPlayers.remove(event.getPlayer().getUniqueId());
+        UUID playerId = event.getPlayer().getUniqueId();
+        moddedPlayers.remove(playerId);
+        reliableStates.remove(playerId);
     }
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        moddedPlayers.remove(player.getUniqueId());
+        UUID playerId = player.getUniqueId();
+        moddedPlayers.remove(playerId);
+        reliableStates.remove(playerId);
     }
 
     public boolean isModdedPlayer(Player player) {
@@ -241,9 +262,130 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     }
 
     private void sendActionResult(Player player, String action, UUID pathId, boolean success, String message, PathData updated) {
-        if (!isModdedPlayer(player)) return;
-        PathActionResultPayload payload = new PathActionResultPayload(action, pathId, success, message, updated);
-        player.sendPluginMessage(plugin, PathActionResultPayload.CHANNEL, payload.toBytes());
+        if (player == null || !player.isOnline() || !isModdedPlayer(player)) {
+            return;
+        }
+
+        ReliableMessageState state = reliableStates.computeIfAbsent(player.getUniqueId(), id -> new ReliableMessageState());
+        long sequence = state.nextSequence.getAndIncrement();
+        PendingActionResult pending = new PendingActionResult(sequence, action, pathId, success, message, updated);
+        state.pending.put(sequence, pending);
+        dispatchPendingResult(player, state, pending);
+    }
+
+    private void dispatchPendingResult(Player player, ReliableMessageState state, PendingActionResult pending) {
+        long now = System.currentTimeMillis();
+        byte[] bytes = pending.toBytes(state.lastAck);
+        player.sendPluginMessage(plugin, PathActionResultPayload.CHANNEL, bytes);
+        pending.markDispatched(now);
+    }
+
+    private void resendPendingActionResults() {
+        long now = System.currentTimeMillis();
+        for (Map.Entry<UUID, ReliableMessageState> entry : reliableStates.entrySet()) {
+            Player target = plugin.getServer().getPlayer(entry.getKey());
+            if (target == null || !target.isOnline() || !isModdedPlayer(target)) {
+                continue;
+            }
+
+            ReliableMessageState state = entry.getValue();
+            if (state.pending.isEmpty()) {
+                continue;
+            }
+
+            for (PendingActionResult pending : new ArrayList<>(state.pending.values())) {
+                if (now - pending.getLastSentAtMs() < RESEND_INTERVAL_MS) {
+                    continue;
+                }
+
+                if (pending.getAttempts() >= MAX_RETRY_ATTEMPTS) {
+                    state.pending.remove(pending.getSequence());
+                    plugin.getLogger().warning("Dropping path action result " + pending.getSequence() + " for " + target.getName() + " after " + pending.getAttempts() + " attempts without acknowledgment.");
+                    continue;
+                }
+
+                byte[] bytes = pending.toBytes(state.lastAck);
+                target.sendPluginMessage(plugin, PathActionResultPayload.CHANNEL, bytes);
+                pending.markDispatched(now);
+            }
+
+            if (state.pending.isEmpty()) {
+                reliableStates.remove(entry.getKey(), state);
+            }
+        }
+    }
+
+    private void handleActionAck(Player player, byte[] message) {
+        if (message == null || message.length < Long.BYTES) {
+            return;
+        }
+        ByteBuffer buffer = ByteBuffer.wrap(message);
+        long acknowledged = buffer.getLong();
+        if (acknowledged <= 0) {
+            return;
+        }
+
+        ReliableMessageState state = reliableStates.get(player.getUniqueId());
+        if (state == null) {
+            return;
+        }
+
+        state.lastAck = Math.max(state.lastAck, acknowledged);
+        state.pending.entrySet().removeIf(entry -> entry.getKey() <= acknowledged);
+        if (state.pending.isEmpty()) {
+            reliableStates.remove(player.getUniqueId(), state);
+        }
+    }
+
+    private static final class ReliableMessageState {
+        private final AtomicLong nextSequence = new AtomicLong(1L);
+        private final ConcurrentSkipListMap<Long, PendingActionResult> pending = new ConcurrentSkipListMap<>();
+        private volatile long lastAck = 0L;
+    }
+
+    private static final class PendingActionResult {
+        private final long sequence;
+        private final String action;
+        private final UUID pathId;
+        private final boolean success;
+        private final String message;
+        private final PathData updated;
+        private volatile long lastSentAtMs;
+        private volatile int attempts;
+
+        private PendingActionResult(long sequence, String action, UUID pathId, boolean success, String message, PathData updated) {
+            this.sequence = sequence;
+            this.action = action;
+            this.pathId = pathId;
+            this.success = success;
+            this.message = message;
+            this.updated = updated;
+            this.lastSentAtMs = 0L;
+            this.attempts = 0;
+        }
+
+        private byte[] toBytes(long acknowledgedSequence) {
+            Long ackField = acknowledgedSequence > 0 ? acknowledgedSequence : null;
+            PathActionResultPayload payload = new PathActionResultPayload(action, pathId, success, message, updated, sequence, ackField);
+            return payload.toBytes();
+        }
+
+        private void markDispatched(long timestampMs) {
+            this.attempts++;
+            this.lastSentAtMs = timestampMs;
+        }
+
+        private long getSequence() {
+            return sequence;
+        }
+
+        private int getAttempts() {
+            return attempts;
+        }
+
+        private long getLastSentAtMs() {
+            return lastSentAtMs;
+        }
     }
 
     private void handleSharePathWithPlayers(Player sender, byte[] message) {
@@ -360,8 +502,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             }
             String json = readString(buffer);
             PathData path = gson.fromJson(json, PathData.class);
-            if (path == null) {
-                throw new IllegalArgumentException("Received empty shared path data");
+            if (path == null || !PathDataManager.isValidPathData(path)) {
+                throw new IllegalArgumentException("Received invalid shared path data");
             }
             if (path.getOriginPathId() == null || path.getOriginOwnerUUID() == null || path.getOriginOwnerName() == null) {
                 path.setOrigin(path.getPathId(), sender.getUniqueId(), sender.getName());
@@ -395,7 +537,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             // The incoming message for a save request is the raw JSON string
             String json = new String(message, StandardCharsets.UTF_8);
             PathData clientPath = gson.fromJson(json, PathData.class);
-            if (clientPath == null) {
+            if (clientPath == null || !PathDataManager.isValidPathData(clientPath)) {
                 sendActionResult(sender, "save", null, false, "Invalid path data.", null);
                 return;
             }
@@ -436,6 +578,9 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     }
 
     private static int readVarInt(ByteBuffer buffer) {
+        if (buffer.remaining() < 1) {
+            throw new IllegalStateException("Buffer underflow reading VarInt");
+        }
         int numRead = 0;
         int result = 0;
         byte read;

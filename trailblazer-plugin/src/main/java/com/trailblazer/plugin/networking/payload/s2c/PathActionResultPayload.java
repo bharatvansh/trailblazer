@@ -17,13 +17,21 @@ public class PathActionResultPayload {
     private final boolean success;
     private final String message;
     private final PathData updated;
+    private final long sequenceNumber;
+    private final Long acknowledgedSequence;
 
     public PathActionResultPayload(String action, UUID pathId, boolean success, String message, PathData updated) {
+        this(action, pathId, success, message, updated, 0L, null);
+    }
+
+    public PathActionResultPayload(String action, UUID pathId, boolean success, String message, PathData updated, long sequenceNumber, Long acknowledgedSequence) {
         this.action = action;
         this.pathId = pathId;
         this.success = success;
         this.message = message;
         this.updated = updated;
+        this.sequenceNumber = sequenceNumber;
+        this.acknowledgedSequence = acknowledgedSequence;
     }
 
     public byte[] toBytes() {
@@ -32,9 +40,19 @@ public class PathActionResultPayload {
         byte[] msgB = (message == null ? "" : message).getBytes(StandardCharsets.UTF_8);
         byte[] updatedB = json.getBytes(StandardCharsets.UTF_8);
         
-        int size = 4 + actionB.length + 1 + (pathId == null ? 0 : 16) + 1 + 4 + msgB.length + 1 + 4 + updatedB.length;
+        int size = 0;
+        size += 4 + actionB.length; // action string
+        size += 1; // path id presence flag
+        size += (pathId == null ? 0 : 16);
+        size += 1; // success flag
+        size += 4 + msgB.length; // message string
+        size += 1; // updated presence flag
+        size += (updated == null ? 0 : 4 + updatedB.length);
+        size += 8; // sequence number
+        size += 1; // ack presence flag
+        size += (acknowledgedSequence == null ? 0 : 8);
         ByteBuffer buf = ByteBuffer.allocate(size);
-        
+
         putVarString(buf, action);
         buf.put((byte)(pathId != null ? 1 : 0));
         if (pathId != null) {
@@ -46,6 +64,11 @@ public class PathActionResultPayload {
         buf.put((byte)(updated != null ? 1 : 0));
         if (updated != null) {
             putVarString(buf, json);
+        }
+        buf.putLong(sequenceNumber);
+        buf.put((byte) (acknowledgedSequence != null ? 1 : 0));
+        if (acknowledgedSequence != null) {
+            buf.putLong(acknowledgedSequence);
         }
         
         return buf.array();

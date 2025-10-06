@@ -83,8 +83,17 @@ When implementing new features:
 - Persistence server: `PathDataManager`
 - Client handshake trigger: Fabric JOIN event → `HandshakePayload`
 
+## 13. Adding inline Documentations to the code - Best Practices
 
-## 13. Context7 MCP Integration (Reminder)
+- Comments Explain WHY, Not WHAT  
+    Comments should avoid restating the code and instead clarify the rationale behind choices, provide relevant context, and note  
+    limitations or future improvements.
+- Concise and To-the-Point.
+- Section Markers Used Effectively.
+- Explanatory Comments for Complex Logic.
+- Remove commented-out code rather than leaving it.
+
+## 14. Context7 MCP Integration (Reminder)
 
 Context7 is key to your success. Using it provides:
 - **Real-time documentation**: Avoids relying on your outdated knowledge.

@@ -10,6 +10,9 @@ import com.trailblazer.api.PathColors;
 import com.trailblazer.api.PathData;
 import com.trailblazer.api.Vector3d;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+
 /**
  * Handles server-side path recording for players without the client mod (and also works with it for live preview).
  */
@@ -86,7 +89,11 @@ public class RecordingManager {
             double dz = current.getZ() - last.getZ();
             if ((dx*dx + dy*dy + dz*dz) < MIN_DIST_SQ) return;
         }
-        if (rec.points.size() >= maxPointsPerPath) return;
+        if (rec.points.size() >= maxPointsPerPath) {
+            player.sendMessage(Component.text("Path recording limit reached (" + maxPointsPerPath + " points). Recording stopped.", NamedTextColor.YELLOW));
+            stopRecording(player, true);
+            return;
+        }
         rec.points.add(current);
         // Live update for modded player
         if (plugin.getServerPacketHandler().isModdedPlayer(player)) {

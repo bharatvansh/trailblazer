@@ -158,15 +158,16 @@ public class ClientPathManager {
 
     public void startRecordingLocal() {
         if (recording) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null) {
+            TrailblazerFabricClient.LOGGER.warn("Cannot start recording: client not ready");
+            return;
+        }
         recording = true;
         UUID id = UUID.randomUUID();
-        MinecraftClient client = MinecraftClient.getInstance();
-        UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : (client != null && client.getSession() != null ? client.getSession().getUuidOrNull() : UUID.randomUUID());
+        UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : (client.getSession() != null ? client.getSession().getUuidOrNull() : UUID.randomUUID());
         String ownerName = resolveLocalPlayerName("Player");
-        String dimension = "minecraft:overworld";
-        if (client != null && client.player != null && client.player.getWorld() != null) {
-            dimension = client.player.getWorld().getRegistryKey().getValue().toString();
-        }
+        String dimension = client.player.getWorld().getRegistryKey().getValue().toString();
         localRecording = new PathData(id, "Path-" + nextPathNumber, ownerUuid, ownerName, System.currentTimeMillis(), dimension, new ArrayList<>());
         addMyPath(localRecording);
         setPathVisible(localRecording.getPathId());
@@ -203,8 +204,8 @@ public class ClientPathManager {
     /** Called each client tick to append points when recording locally. */
     public void tickRecording(MinecraftClient client) {
         if (!recording || localRecording == null) return;
+        if (client == null || client.player == null) return;
         PlayerEntity player = client.player;
-        if (player == null) return;
         Vector3d current = new Vector3d(player.getX(), player.getY(), player.getZ());
         List<Vector3d> pts = localRecording.getPoints();
         if (pts.isEmpty()) {

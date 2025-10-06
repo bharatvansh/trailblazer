@@ -13,9 +13,11 @@ import java.util.UUID;
 
 /**
  * Generic acknowledgement / result packet for path actions initiated by the client.
- * Provides: action name, path id (if applicable), success flag, message, and optional updated PathData.
+ * Provides: action name, path id (if applicable), success flag, message, optional updated PathData,
+ * and reliability metadata (sequence number + highest acknowledged sequence).
  */
-public record PathActionResultPayload(String action, UUID pathId, boolean success, String message, PathData updatedPath) implements CustomPayload {
+public record PathActionResultPayload(String action, UUID pathId, boolean success, String message, PathData updatedPath,
+                                     long sequenceNumber, Long acknowledgedSequence) implements CustomPayload {
     public static final Id<PathActionResultPayload> ID = new Id<>(Identifier.of(TrailblazerFabricClient.MOD_ID, "path_action_result"));
     private static final Gson GSON = new Gson();
 
@@ -35,6 +37,11 @@ public record PathActionResultPayload(String action, UUID pathId, boolean succes
             String json = GSON.toJson(value.updatedPath);
             writeUtf(buf, json);
         }
+        buf.writeLong(value.sequenceNumber);
+        buf.writeBoolean(value.acknowledgedSequence != null);
+        if (value.acknowledgedSequence != null) {
+            buf.writeLong(value.acknowledgedSequence);
+        }
     }
 
     private static PathActionResultPayload read(RegistryByteBuf buf) {
@@ -48,7 +55,12 @@ public record PathActionResultPayload(String action, UUID pathId, boolean succes
             String json = readUtf(buf);
             try { updated = GSON.fromJson(json, PathData.class); } catch (Exception ignored) {}
         }
-        return new PathActionResultPayload(action, pid, success, message, updated);
+        long sequence = buf.readLong();
+        Long ack = null;
+        if (buf.readBoolean()) {
+            ack = buf.readLong();
+        }
+        return new PathActionResultPayload(action, pid, success, message, updated, sequence, ack);
     }
 
     private static void writeUtf(RegistryByteBuf buf, String s) {

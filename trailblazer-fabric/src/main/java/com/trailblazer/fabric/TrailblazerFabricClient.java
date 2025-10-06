@@ -82,6 +82,7 @@ public class TrailblazerFabricClient implements ClientModInitializer {
     private void registerWorldLifecycle() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             client.execute(() -> {
+                ClientPacketHandler.resetReliableActionState();
                 clientPathManager.setLocalPlayerUuid(client.getSession().getUuidOrNull());
                 clientPathManager.applyServerSync(java.util.Collections.emptyList());
                 if (client.getServer() != null) {
@@ -102,6 +103,7 @@ public class TrailblazerFabricClient implements ClientModInitializer {
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             client.execute(() -> {
+                ClientPacketHandler.resetReliableActionState();
                 clientPathManager.applyServerSync(java.util.Collections.emptyList());
                 clientPathManager.setLocalPlayerUuid(null);
                 persistence.saveAll();

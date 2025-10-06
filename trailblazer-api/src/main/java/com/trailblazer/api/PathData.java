@@ -27,14 +27,14 @@ public class PathData implements Serializable {
 
     public PathData(UUID pathId, String pathName, UUID ownerUUID, String ownerName, long creationTimestamp, String dimension, List<Vector3d> points) {
         Objects.requireNonNull(pathId, "Path ID cannot be null");
-        Objects.requireNonNull(pathName, "Path Name cannot be null");
         Objects.requireNonNull(ownerUUID, "Owner UUID cannot be null");
         Objects.requireNonNull(ownerName, "Owner Name cannot be null");
         Objects.requireNonNull(dimension, "Dimension cannot be null");
         Objects.requireNonNull(points, "Points list cannot be null");
 
         this.pathId = pathId;
-        this.pathName = pathName;
+        // Sanitize early to enforce consistent invariant for all PathData instances (security hardening)
+        this.pathName = PathNameSanitizer.sanitize(pathName);
         this.ownerUUID = ownerUUID;
         this.ownerName = ownerName;
         this.creationTimestamp = creationTimestamp;
@@ -121,8 +121,8 @@ public class PathData implements Serializable {
     }
 
     public void setPathName(String pathName) {
-        Objects.requireNonNull(pathName, "Path Name cannot be null");
-        this.pathName = pathName;
+        // Accept null / blank and map to default via sanitizer
+        this.pathName = PathNameSanitizer.sanitize(pathName);
     }
 
     @Override

@@ -10,6 +10,7 @@ import com.trailblazer.api.PathData;
 import com.trailblazer.api.Vector3d;
 import com.trailblazer.fabric.ClientPathManager;
 import com.trailblazer.fabric.TrailblazerFabricClient;
+import com.trailblazer.fabric.networking.payload.c2s.PathActionAckPayload;
 import com.trailblazer.fabric.networking.payload.s2c.HideAllPathsPayload;
 import com.trailblazer.fabric.networking.payload.s2c.LivePathUpdatePayload;
 import com.trailblazer.fabric.networking.payload.s2c.PathDataSyncPayload;
@@ -26,6 +27,11 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 public class ClientPacketHandler {
 
     private static final Gson GSON = new Gson();
+    private static long highestActionResultSequence = 0L;
+
+    public static void resetReliableActionState() {
+        highestActionResultSequence = 0L;
+    }
 
     public static void registerS2CPackets(ClientPathManager pathManager) {
         ClientPlayNetworking.registerGlobalReceiver(PathDataSyncPayload.ID, (payload, context) -> {
@@ -91,22 +97,51 @@ public class ClientPacketHandler {
         );
 
         ClientPlayNetworking.registerGlobalReceiver(PathActionResultPayload.ID, (payload, context) -> {
+            long sequence = payload.sequenceNumber();
             context.client().execute(() -> {
                 var client = context.client();
+                boolean requiresAck = sequence > 0;
+                boolean isDuplicate = requiresAck && sequence <= highestActionResultSequence;
 
-                // Handle the special case for a successful "save" action
-                if ("save".equals(payload.action()) && payload.success() && payload.updatedPath() != null) {
-                    pathManager.replaceLocalWithServerCopy(payload.updatedPath());
-                } else if (payload.updatedPath() != null) {
-                    // Handle generic updates for other actions like rename, color, etc.
-                    pathManager.onPathUpdated(payload.updatedPath());
+                if (!isDuplicate) {
+                    if (requiresAck) {
+                        highestActionResultSequence = sequence;
+                    }
+
+                    try {
+                        // Handle the special case for a successful "save" action
+                        if ("save".equals(payload.action()) && payload.success() && payload.updatedPath() != null) {
+                            pathManager.replaceLocalWithServerCopy(payload.updatedPath());
+                        } else if (payload.updatedPath() != null) {
+                            // Handle generic updates for other actions like rename, color, etc.
+                            pathManager.onPathUpdated(payload.updatedPath());
+                        }
+
+                        if (client.player != null && payload.message() != null && !payload.message().isEmpty()) {
+                            net.minecraft.text.Style style = payload.success() ? net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.GREEN) : net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.RED);
+                            client.player.sendMessage(net.minecraft.text.Text.literal(payload.message()).setStyle(style), false);
+                        }
+                    } catch (Exception ex) {
+                        TrailblazerFabricClient.LOGGER.error("Failed to handle path action result payload", ex);
+                    }
                 }
 
-                if (client.player != null && payload.message() != null && !payload.message().isEmpty()) {
-                    net.minecraft.text.Style style = payload.success() ? net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.GREEN) : net.minecraft.text.Style.EMPTY.withColor(net.minecraft.util.Formatting.RED);
-                    client.player.sendMessage(net.minecraft.text.Text.literal(payload.message()).setStyle(style), false);
+                if (requiresAck) {
+                    sendActionAck(highestActionResultSequence);
                 }
             });
         });
+    }
+
+    private static void sendActionAck(long ackSequence) {
+        if (ackSequence <= 0) {
+            return;
+        }
+
+        if (ClientPlayNetworking.canSend(PathActionAckPayload.ID)) {
+            ClientPlayNetworking.send(new PathActionAckPayload(ackSequence));
+        } else {
+            TrailblazerFabricClient.LOGGER.debug("Server does not accept Trailblazer action acknowledgments yet.");
+        }
     }
 }

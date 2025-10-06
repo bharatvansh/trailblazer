@@ -46,7 +46,7 @@ id 'fabric-loom' version '1.9.2' // or latest stable
 
 > **Review Comment:** This fix is correct - using SNAPSHOT versions creates build instability. Switching to stable releases ensures consistent builds across different environments and times.
 
-### 1.2 Thread Safety in PathDataManager
+### 1.2 Thread Safety in PathDataManager - Already Implemented
 
 **Problem:** Mixed synchronization granularity with coarse `ioLock`
 - **Files:** `PathDataManager.java:33-44, 55-74, 76-110`
@@ -69,7 +69,7 @@ public void savePath(PathData path) {
 
 > **Review Comment:** The per-path locking solution is appropriate and solves the bottleneck while maintaining thread safety. This allows concurrent saves of different paths.
 
-### 1.3 Missing Error Recovery in Network Communication
+### 1.3 Missing Error Recovery in Network Communication - Already Implemented
 
 **Problem:** No retry logic or graceful degradation when plugin messages fail
 - **Files:** `ServerPacketHandler.java`, `ClientPacketHandler.java`
@@ -86,7 +86,7 @@ private final Map<UUID, PriorityQueue<PendingMessage>> pendingByPlayer = new Con
 
 > **Review Comment:** Retry logic with acknowledgments is the correct approach for reliable delivery. The suggested implementation provides good foundation for handling network instability.
 
-### 1.4 Path Point Limit Not Enforced Uniformly
+### 1.4 Path Point Limit Not Enforced Uniformly - Already Implemented
 
 **Problem:** Server `RecordingManager` and client have different enforcement
 - **Server:** `RecordingManager.java:89` - silently stops adding points
@@ -103,7 +103,7 @@ if (rec.points.size() >= maxPointsPerPath) {
 
 > **Review Comment:** Adding user notification is essential - silent failures create confusion. The fix properly informs users and auto-saves their work.
 
-### 1.5 Potential Memory Leak in PathRendererManager
+### 1.5 Potential Memory Leak in PathRendererManager - Already Implemented
 
 **Problem:** `activeRenderTasks` uses ConcurrentHashMap but doesn't clean up stopped tasks on error
 - **File:** `PathRendererManager.java:50`
@@ -124,7 +124,7 @@ public void stopRendering(Player player) {
 
 > **Review Comment:** The try-catch ensures task removal even on exception. This fix correctly prevents memory leaks from failed task cancellations.
 
-### 1.6 JSON Deserialization Without Validation
+### 1.6 JSON Deserialization Without Validation - Already Implemented
 
 **Problem:** Gson deserialization accepts arbitrary JSON without schema validation
 - **Files:** `PathDataManager.java:63`, `ServerPacketHandler.java:397`
@@ -149,7 +149,7 @@ private boolean isValidPathData(PathData path) {
 
 > **Review Comment:** Post-deserialization validation is critical for security. The validation checks cover essential fields and prevents malformed data from crashing the system.
 
-### 1.7 Resource Leaks in File Operations
+### 1.7 Resource Leaks in File Operations - Already Implemented
 
 **Problem:** Some file operations don't use try-with-resources consistently
 - **File:** `PathDataManager.java:82-90`
@@ -158,7 +158,7 @@ private boolean isValidPathData(PathData path) {
 
 > **Review Comment:** Try-with-resources is Java's best practice for resource management. Ensuring consistency across all file operations prevents resource leaks.
 
-### 1.8 VarInt Reading Without Bounds Check Could Hang
+### 1.8 VarInt Reading Without Bounds Check Could Hang - Already Implemented
 
 **Problem:** `readVarInt` in `ServerPacketHandler:438-454` has loop limit but no timeout
 - **Impact:** Malformed packet could cause high CPU usage
@@ -174,7 +174,7 @@ private static int readVarInt(ByteBuffer buffer) {
 
 > **Review Comment:** Buffer bounds checking before reading is correct. Combined with existing iteration limit, this provides good protection against malformed data.
 
-### 1.9 Missing Null Checks in ClientPathManager
+### 1.9 Missing Null Checks in ClientPathManager - Already Implemented
 
 **Problem:** Several methods assume client/player exists
 - **File:** `ClientPathManager.java:164, 206, 414`
@@ -194,7 +194,7 @@ public void startRecordingLocal() {
 
 > **Review Comment:** Defensive null checks are essential for client-side code where timing can be unpredictable. This prevents crashes during initialization or world transitions.
 
-### 1.10 Race Condition in applyServerSync
+### 1.10 Race Condition in applyServerSync - Already Implemented
 
 **Problem:** `ClientPathManager.applyServerSync` modifies collections while iterating
 - **File:** `ClientPathManager.java:298-331`
@@ -530,6 +530,8 @@ public static String sanitizePathName(String name) {
     return trimmed;
 }
 ```
+
+> Implementation Note (2025-10-06): Path name sanitation has been implemented in code via `PathNameSanitizer.sanitize(String)`. All constructors and mutators for `PathData` pass names through this utility. Names are also sanitized on load (with automatic persistence if corrected) and during rename / metadata update operations. A JUnit test `PathNameSanitizerTest` verifies: null/blank handling, length clamping, invalid character replacement, preservation of valid characters, and defaulting when no alphanumeric characters remain.
 
 2. **Point count limits:** Enforce strictly server-side
 3. **Rate limiting:** Limit path creation/modification frequency per player

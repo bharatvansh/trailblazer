@@ -85,9 +85,13 @@ public class PathRendererManager {
     }
 
     public void stopRendering(Player player) {
-        BukkitTask existingTask = activeRenderTasks.remove(player.getUniqueId());
-        if (existingTask != null && !existingTask.isCancelled()) {
-            existingTask.cancel();
+        BukkitTask task = activeRenderTasks.remove(player.getUniqueId());
+        if (task != null) {
+            try {
+                task.cancel();
+            } catch (Exception e) {
+                plugin.getLogger().warning("Error canceling render task: " + e.getMessage());
+            }
         }
     }
 

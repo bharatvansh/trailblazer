@@ -9,17 +9,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.trailblazer.api.PathData;
 import com.trailblazer.api.Vector3d;
+import com.trailblazer.api.PathNameSanitizer;
 
 public class PathDataManager {
 
     private final File dataFolder;
     private final Gson gson;
-    private int nextServerPathLetter = 0;
+    private final AtomicInteger nextServerPathLetter = new AtomicInteger(0);
+    public static final int MAX_POINTS_PER_PATH = 5000;
 
     public PathDataManager(TrailblazerPlugin plugin) {
         this.dataFolder = new File(plugin.getDataFolder(), "paths");
@@ -29,53 +34,82 @@ public class PathDataManager {
         this.gson = new GsonBuilder().setPrettyPrinting().create();
     }
 
-    // Coarse-grained lock to protect file I/O operations on path JSON files.
-    private final Object ioLock = new Object();
+    // Per-path locks so concurrent operations on different paths do not contend.
+    private final ConcurrentHashMap<UUID, ReentrantLock> pathLocks = new ConcurrentHashMap<>();
 
     public void savePath(PathData path) {
+        if (path == null || path.getPathId() == null) {
+            throw new IllegalArgumentException("Path and pathId must not be null");
+        }
         File pathFile = new File(dataFolder, path.getPathId().toString() + ".json");
-        synchronized (ioLock) {
+        ReentrantLock lock = acquireLock(path.getPathId());
+        try {
             try (FileWriter writer = new FileWriter(pathFile)) {
                 gson.toJson(path, writer);
-            } catch (IOException e) {
-                TrailblazerPlugin.getPluginLogger().severe("Failed to save path " + path.getPathName());
-                e.printStackTrace();
             }
+        } catch (IOException e) {
+            TrailblazerPlugin.getPluginLogger().severe("Failed to save path " + path.getPathName());
+            e.printStackTrace();
+        } finally {
+            releaseLock(path.getPathId(), lock);
         }
     }
 
     public String getNextServerPathName() {
-        String letter = String.valueOf((char)('A' + nextServerPathLetter));
-        nextServerPathLetter++;
+        int current = nextServerPathLetter.getAndIncrement();
+        String letter = String.valueOf((char) ('A' + current));
         return "Path-" + letter;
     }
 
     public List<PathData> loadPaths(UUID playerUUID) {
         List<PathData> playerPaths = new ArrayList<>();
-        synchronized (ioLock) {
-            File[] pathFiles = dataFolder.listFiles((dir, name) -> name.endsWith(".json"));
-            if (pathFiles == null) {
-                return playerPaths;
+        File[] pathFiles = dataFolder.listFiles((dir, name) -> name.endsWith(".json"));
+        if (pathFiles == null) {
+            return playerPaths;
+        }
+
+        for (File pathFile : pathFiles) {
+            UUID pathId = extractPathId(pathFile.getName());
+            if (pathId == null) {
+                TrailblazerPlugin.getPluginLogger().warning("Skipping path file with invalid name: " + pathFile.getName());
+                continue;
             }
 
-            for (File pathFile : pathFiles) {
-                try (FileReader reader = new FileReader(pathFile)) {
-                    PathData pathData = gson.fromJson(reader, PathData.class);
-                    if (pathData != null && (pathData.getOwnerUUID().equals(playerUUID) || pathData.getSharedWith().contains(playerUUID))) {
-                        playerPaths.add(pathData);
-                    }
-                } catch (IOException e) {
-                    TrailblazerPlugin.getPluginLogger().severe("Failed to load a path file for " + playerUUID);
-                    e.printStackTrace();
+            ReentrantLock lock = acquireLock(pathId);
+            try (FileReader reader = new FileReader(pathFile)) {
+                PathData pathData = gson.fromJson(reader, PathData.class);
+                if (pathData == null || !isValidPathData(pathData)) {
+                    TrailblazerPlugin.getPluginLogger().warning("Skipping invalid path data file: " + pathFile.getName());
+                    continue;
                 }
+                if (pathData.getOwnerUUID().equals(playerUUID) || pathData.getSharedWith().contains(playerUUID)) {
+                    // Sanitize name post-deserialization to harden against tampered JSON
+                    String original = pathData.getPathName();
+                    String sanitized = PathNameSanitizer.sanitize(original);
+                    if (!sanitized.equals(original)) {
+                        pathData.setPathName(sanitized);
+                        // Persist corrected name asynchronously (reuse save logic)
+                        savePath(pathData);
+                    }
+                    playerPaths.add(pathData);
+                }
+            } catch (IOException e) {
+                TrailblazerPlugin.getPluginLogger().severe("Failed to load a path file for " + playerUUID);
+                e.printStackTrace();
+            } finally {
+                releaseLock(pathId, lock);
             }
         }
         return playerPaths;
     }
 
     public boolean deletePath(UUID playerUUID, UUID pathId) {
+        if (pathId == null) {
+            return false;
+        }
         File pathFile = new File(dataFolder, pathId.toString() + ".json");
-        synchronized (ioLock) {
+        ReentrantLock lock = acquireLock(pathId);
+        try {
             if (!pathFile.exists()) {
                 return false;
             }
@@ -106,6 +140,8 @@ public class PathDataManager {
                 savePath(pathData);
             }
             return removed;
+        } finally {
+            releaseLock(pathId, lock);
         }
     }
 
@@ -113,10 +149,7 @@ public class PathDataManager {
         if (source == null || targetUuid == null || targetName == null || targetName.isBlank()) {
             throw new IllegalArgumentException("Source path, target UUID, and target name must be provided");
         }
-        List<PathData> existing;
-        synchronized (ioLock) {
-            existing = loadPaths(targetUuid);
-        }
+        List<PathData> existing = loadPaths(targetUuid);
         UUID originPathId = resolveOriginPathId(source);
         Optional<PathData> alreadyOwned = existing.stream()
                 .filter(p -> targetUuid.equals(p.getOwnerUUID()))
@@ -131,9 +164,7 @@ public class PathDataManager {
         PathData copy = new PathData(UUID.randomUUID(), newName, targetUuid, targetName,
                 System.currentTimeMillis(), source.getDimension(), copiedPoints, source.getColorArgb());
         copy.setOrigin(originPathId, resolveOriginOwner(source), resolveOriginOwnerName(source));
-        synchronized (ioLock) {
-            savePath(copy);
-        }
+        savePath(copy);
         return new SharedCopyResult(copy, true);
     }
 
@@ -194,21 +225,29 @@ public class PathDataManager {
     }
 
     public void renamePath(UUID playerUUID, UUID pathId, String newName) {
+        if (pathId == null) {
+            TrailblazerPlugin.getPluginLogger().warning("Attempted to rename a path with null identifier");
+            return;
+        }
+        String sanitized = com.trailblazer.api.PathNameSanitizer.sanitize(newName);
         File pathFile = new File(dataFolder, pathId.toString() + ".json");
         if (!pathFile.exists()) {
             TrailblazerPlugin.getPluginLogger().warning("Attempted to rename a path that does not exist: " + pathId);
             return;
         }
 
+        ReentrantLock lock = acquireLock(pathId);
         try (FileReader reader = new FileReader(pathFile)) {
             PathData pathData = gson.fromJson(reader, PathData.class);
             if (pathData != null && pathData.getOwnerUUID().equals(playerUUID)) {
-                pathData.setPathName(newName);
+                pathData.setPathName(sanitized);
                 savePath(pathData);
             }
         } catch (IOException e) {
             TrailblazerPlugin.getPluginLogger().severe("Failed to rename path: " + pathId);
             e.printStackTrace();
+        } finally {
+            releaseLock(pathId, lock);
         }
     }
 
@@ -221,7 +260,7 @@ public class PathDataManager {
             }
             if (path.getOwnerUUID().equals(playerUUID)) {
                 if (newName != null && !newName.isBlank()) {
-                    path.setPathName(newName);
+                    path.setPathName(com.trailblazer.api.PathNameSanitizer.sanitize(newName));
                 }
                 if (colorArgb != 0) {
                     path.setColorArgb(colorArgb);
@@ -232,5 +271,36 @@ public class PathDataManager {
             break;
         }
         return updated ? paths : null;
+    }
+
+    public static boolean isValidPathData(PathData path) {
+        return path.getPathId() != null
+            && path.getOwnerUUID() != null
+            && path.getPoints() != null
+            && path.getPoints().size() <= MAX_POINTS_PER_PATH;
+    }
+
+    private ReentrantLock acquireLock(UUID pathId) {
+        ReentrantLock lock = pathLocks.computeIfAbsent(pathId, id -> new ReentrantLock());
+        lock.lock();
+        return lock;
+    }
+
+    private void releaseLock(UUID pathId, ReentrantLock lock) {
+        if (lock != null && lock.isHeldByCurrentThread()) {
+            lock.unlock();
+        }
+    }
+
+    private UUID extractPathId(String fileName) {
+        if (fileName == null || !fileName.endsWith(".json")) {
+            return null;
+        }
+        String raw = fileName.substring(0, fileName.length() - 5);
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 }

@@ -1,4 +1,25 @@
 // This module is a pure Java library. It has no dependencies on Minecraft, Spigot, or Fabric.
 // This ensures that both the plugin and the mod can use its classes.
 
-// No extra configuration is needed here for now.
+plugins {
+	id 'java'
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	testImplementation platform('org.junit:junit-bom:5.10.2')
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+	useJUnitPlatform()
+}

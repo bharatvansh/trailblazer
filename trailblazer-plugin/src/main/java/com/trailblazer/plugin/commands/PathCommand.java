@@ -342,12 +342,13 @@ public class PathCommand implements CommandExecutor {
         var pr = CommandUtils.parseQuoted(args, 1, false);
         String oldName = pr.value;
         var pr2 = CommandUtils.parseQuoted(args, pr.nextIndex, true);
-        String newName = pr2.value;
+        String rawNewName = pr2.value;
+        String sanitizedNewName = com.trailblazer.api.PathNameSanitizer.sanitize(rawNewName);
         List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
 
         // Check if a path with the new name already exists to avoid duplicates.
-        if (paths.stream().anyMatch(p -> p.getPathName().equalsIgnoreCase(newName))) {
-            player.sendMessage(Component.text("A path with the name '" + newName + "' already exists.", NamedTextColor.RED));
+        if (paths.stream().anyMatch(p -> p.getPathName().equalsIgnoreCase(sanitizedNewName))) {
+            player.sendMessage(Component.text("A path with the name '" + sanitizedNewName + "' already exists.", NamedTextColor.RED));
             return;
         }
 
@@ -355,8 +356,12 @@ public class PathCommand implements CommandExecutor {
 
         if (pathOpt.isPresent()) {
             // A player can rename any path in their list. For shared paths, this is just a local alias.
-            pathDataManager.renamePath(player.getUniqueId(), pathOpt.get().getPathId(), newName);
-            player.sendMessage(Component.text("Path '" + oldName + "' renamed to '" + newName + "'.", NamedTextColor.GREEN));
+            pathDataManager.renamePath(player.getUniqueId(), pathOpt.get().getPathId(), sanitizedNewName);
+            if (!sanitizedNewName.equals(rawNewName)) {
+                player.sendMessage(Component.text("Path '" + oldName + "' renamed to sanitized '" + sanitizedNewName + "' (invalid characters were adjusted).", NamedTextColor.GREEN));
+            } else {
+                player.sendMessage(Component.text("Path '" + oldName + "' renamed to '" + sanitizedNewName + "'.", NamedTextColor.GREEN));
+            }
         } else {
             player.sendMessage(Component.text("Path '" + oldName + "' not found.", NamedTextColor.RED));
         }
