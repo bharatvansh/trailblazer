@@ -21,4 +21,6 @@ rootProject.name = 'Trailblazer'
 
 include 'trailblazer-api'
 include 'trailblazer-plugin'
+// Note: fabric module uses fabric-loom 1.10-SNAPSHOT which may not always be available
+// See FABRIC_BUILD_NOTES.md for troubleshooting if build fails
 include 'trailblazer-fabric'
