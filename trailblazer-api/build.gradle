@@ -3,6 +3,7 @@
 
 plugins {
 	id 'java'
+	id 'jacoco'
 }
 
 java {
@@ -18,8 +19,38 @@ repositories {
 dependencies {
 	testImplementation platform('org.junit:junit-bom:5.10.2')
 	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'org.mockito:mockito-core:5.11.0'
+	testImplementation 'org.mockito:mockito-junit-jupiter:5.11.0'
+	testImplementation 'org.assertj:assertj-core:3.25.3'
+	testImplementation 'com.google.code.gson:gson:2.10.1'
 }
 
 test {
 	useJUnitPlatform()
+	finalizedBy jacocoTestReport
 }
+
+jacoco {
+	toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+		html.required = true
+		csv.required = false
+	}
+}
+
+jacocoTestCoverageVerification {
+	violationRules {
+		rule {
+			limit {
+				minimum = 0.70
+			}
+		}
+	}
+}
+
+check.dependsOn jacocoTestCoverageVerification

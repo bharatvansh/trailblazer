@@ -1,0 +1,97 @@
+name: CI Build and Test
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+        cache: 'gradle'
+        
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+      
+    - name: Build with Gradle
+      run: ./gradlew build --no-daemon --stacktrace
+      
+    - name: Run tests
+      run: ./gradlew test --no-daemon --stacktrace
+      continue-on-error: false
+      
+    - name: Generate JaCoCo coverage reports
+      run: ./gradlew jacocoTestReport --no-daemon
+      continue-on-error: true
+      
+    - name: Upload API coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./trailblazer-api/build/reports/jacoco/test/jacocoTestReport.xml
+        flags: api
+        name: trailblazer-api
+        fail_ci_if_error: false
+      continue-on-error: true
+      
+    - name: Upload Plugin coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./trailblazer-plugin/build/reports/jacoco/test/jacocoTestReport.xml
+        flags: plugin
+        name: trailblazer-plugin
+        fail_ci_if_error: false
+      continue-on-error: true
+      
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: |
+          **/build/reports/tests/
+          **/build/test-results/
+        retention-days: 7
+        
+    - name: Upload coverage reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: |
+          **/build/reports/jacoco/
+        retention-days: 7
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts
+        path: |
+          trailblazer-api/build/libs/*.jar
+          trailblazer-plugin/build/libs/*.jar
+          trailblazer-fabric/build/libs/*.jar
+        retention-days: 30
+        if-no-files-found: warn
+        
+    - name: Test Report Summary
+      if: always()
+      run: |
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ -f "trailblazer-api/build/test-results/test/TEST-*.xml" ]; then
+          echo "✅ API Tests: Run completed" >> $GITHUB_STEP_SUMMARY
+        fi
+        if [ -f "trailblazer-plugin/build/test-results/test/TEST-*.xml" ]; then
+          echo "✅ Plugin Tests: Run completed" >> $GITHUB_STEP_SUMMARY
+        fi

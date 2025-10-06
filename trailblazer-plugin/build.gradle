@@ -1,6 +1,7 @@
 plugins {
     // This applies the shadow plugin, which bundles our libraries.
     id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'jacoco'
 }
 
 // This block is where the plugin module declares its specific needs.
@@ -17,6 +18,32 @@ dependencies {
 
     // We need the Netty library for byte buffer manipulation.
     implementation 'io.netty:netty-buffer:4.1.97.Final'
+
+    // Test dependencies
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.11.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.11.0'
+    testImplementation 'org.assertj:assertj-core:3.25.3'
+    testImplementation 'com.github.seeseemelk:MockBukkit-v1.21:3.96.0'
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
 }
 
 // This correctly processes the version number in plugin.yml

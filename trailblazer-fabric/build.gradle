@@ -1,6 +1,6 @@
 plugins {
-    // Using the version you confirmed works
-    id 'fabric-loom' version '1.10-SNAPSHOT'
+    // Using stable release version for reliable builds
+    id 'fabric-loom' version '1.6-SNAPSHOT'
 }
 
 version = rootProject.mod_version
