@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "trailblazer",
   "version": "${version}",
-  "name": "Trailblazer",
-  "description": "Client-side companion mod for the Trailblazer path sharing system.",
+  "name": "Path Sharing",
+  "description": "Client-side companion for Path sharing. Local rendering, recording, editing, and optional server sync and sharing when paired with the server plugin.",
   "authors": [
-    "YourName"
+    "Mod MC"
   ],
   "contact": {},
   "license": "MIT",
