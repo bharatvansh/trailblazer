@@ -78,6 +78,8 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
     private void registerCommands() {
         getCommand("trailblazer").setExecutor(new TrailblazerCommand(this));
         getCommand("trailblazer").setTabCompleter(new PathTabCompleter(pathDataManager));
+        getCommand("tbl").setExecutor(new TrailblazerCommand(this));
+        getCommand("tbl").setTabCompleter(new PathTabCompleter(pathDataManager));
         pluginLogger.info("Commands registered.");
     }
 

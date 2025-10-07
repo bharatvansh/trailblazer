@@ -16,7 +16,8 @@ public class PathTabCompleter implements TabCompleter {
 
     private final PathDataManager pathDataManager;
     // Include 'help' so tab completion suggests it for server-side users as well
-    private static final List<String> SUB_COMMANDS = List.of("view", "hide", "list", "delete", "rename", "rendermode", "share", "color", "info", "record", "spacing", "help");
+    // Ordered to match preferred server-side command order: record -> list -> view -> hide -> info -> rename -> delete -> color -> spacing -> share -> rendermode -> help
+    private static final List<String> SUB_COMMANDS = List.of("record", "list", "view", "hide", "info", "rename", "delete", "color", "spacing", "share", "rendermode", "help");
     private static final List<String> RECORD_SUB = List.of("start","stop","cancel","status");
 
     public PathTabCompleter(PathDataManager pathDataManager) {

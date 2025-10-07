@@ -29,8 +29,6 @@ import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.arg
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
 import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
 import com.trailblazer.fabric.sharing.PathShareSender;
-import com.trailblazer.fabric.networking.payload.c2s.SavePathRequestPayload;
-import com.google.gson.Gson;
 
 public final class TrailblazerCommand {
 
@@ -60,20 +58,9 @@ public final class TrailblazerCommand {
 
             var trailblazerNode = literal("trailblazer")
                 .executes(ctx -> sendHelp(ctx.getSource()))
-                .then(literal("help").executes(ctx -> sendHelp(ctx.getSource())))
+                // Ordered for client-only preference: record -> list -> view -> hide -> info -> rename -> delete -> color -> share -> rendermode -> help
                 .then(recordNode)
-                .then(literal("share")
-                    .then(argument("name", StringArgumentType.greedyString())
-                        .suggests(TrailblazerCommand::suggestPathNames)
-                        .then(argument("players", StringArgumentType.string())
-                            .suggests(TrailblazerCommand::suggestPlayerNames)
-                            .executes(ctx -> sharePath(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "players"))))))
-                .then(literal("color")
-                    .then(argument("name", StringArgumentType.greedyString())
-                        .suggests(TrailblazerCommand::suggestPathNames)
-                        .then(argument("color", StringArgumentType.string())
-                            .suggests(TrailblazerCommand::suggestColorNames)
-                            .executes(ctx -> setColor(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "color"))))))
+                .then(literal("list").executes(ctx -> listPaths(ctx.getSource())))
                 .then(literal("view")
                     .then(argument("name", StringArgumentType.greedyString())
                         .suggests(TrailblazerCommand::suggestPathNames)
@@ -83,29 +70,36 @@ public final class TrailblazerCommand {
                     .then(argument("name", StringArgumentType.greedyString())
                         .suggests(TrailblazerCommand::suggestPathNames)
                         .executes(ctx -> hideOne(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
-                .then(literal("rendermode")
-                    .then(argument("mode", StringArgumentType.string())
-                        .suggests((c,b)->suggestRenderModes(b))
-                        .executes(ctx -> setRenderMode(ctx.getSource(), StringArgumentType.getString(ctx, "mode")))))
-                .then(literal("list").executes(ctx -> listPaths(ctx.getSource())))
                 .then(literal("info")
                     .then(argument("name", StringArgumentType.greedyString())
                         .suggests(TrailblazerCommand::suggestPathNames)
                         .executes(ctx -> showInfo(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
-                .then(literal("delete")
-                    .then(argument("name", StringArgumentType.greedyString())
-                        .suggests(TrailblazerCommand::suggestPathNames)
-                        .executes(ctx -> deletePath(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
-                    .then(literal("save")
-                        .then(argument("name", StringArgumentType.greedyString())
-                            .suggests(TrailblazerCommand::suggestLocalPathNames)
-                            .executes(ctx -> savePath(ctx.getSource(), StringArgumentType.getString(ctx, "name"))))
-                        .executes(ctx -> savePath(ctx.getSource(), null)))
                 .then(literal("rename")
                     .then(argument("oldName", StringArgumentType.string())
                         .suggests(TrailblazerCommand::suggestLocalPathNames)
                         .then(argument("newName", StringArgumentType.string())
-                            .executes(ctx -> renamePath(ctx.getSource(), StringArgumentType.getString(ctx, "oldName"), StringArgumentType.getString(ctx, "newName"))))));
+                            .executes(ctx -> renamePath(ctx.getSource(), StringArgumentType.getString(ctx, "oldName"), StringArgumentType.getString(ctx, "newName"))))))
+                .then(literal("delete")
+                    .then(argument("name", StringArgumentType.greedyString())
+                        .suggests(TrailblazerCommand::suggestPathNames)
+                        .executes(ctx -> deletePath(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
+                .then(literal("color")
+                    .then(argument("name", StringArgumentType.greedyString())
+                        .suggests(TrailblazerCommand::suggestPathNames)
+                        .then(argument("color", StringArgumentType.string())
+                            .suggests(TrailblazerCommand::suggestColorNames)
+                            .executes(ctx -> setColor(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "color"))))))
+                .then(literal("share")
+                    .then(argument("name", StringArgumentType.greedyString())
+                        .suggests(TrailblazerCommand::suggestPathNames)
+                        .then(argument("players", StringArgumentType.string())
+                            .suggests(TrailblazerCommand::suggestPlayerNames)
+                            .executes(ctx -> sharePath(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "players"))))))
+                .then(literal("rendermode")
+                    .then(argument("mode", StringArgumentType.string())
+                        .suggests((c,b)->suggestRenderModes(b))
+                        .executes(ctx -> setRenderMode(ctx.getSource(), StringArgumentType.getString(ctx, "mode")))))
+                .then(literal("help").executes(ctx -> sendHelp(ctx.getSource())));
 
             var builtNode = dispatcher.register(trailblazerNode);
             dispatcher.register(literal("tbl").redirect(builtNode));
@@ -116,20 +110,30 @@ public final class TrailblazerCommand {
 
     private static int sendHelp(FabricClientCommandSource source) {
         source.sendFeedback(Text.literal("--- Trailblazer Help ---").formatted(Formatting.GOLD));
-        source.sendFeedback(Text.literal("/trailblazer help").formatted(Formatting.YELLOW).append(Text.literal(" - Show this help.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer record").formatted(Formatting.YELLOW).append(Text.literal(" - Toggle recording (shortcut).\n" ).formatted(Formatting.WHITE)));
+        // Primary flow: record -> list -> view -> hide -> info -> rename -> delete
+        source.sendFeedback(Text.literal("/trailblazer record").formatted(Formatting.YELLOW).append(Text.literal(" - Toggle recording (shortcut)." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer record start").formatted(Formatting.YELLOW).append(Text.literal(" - Start a new recording." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer record stop").formatted(Formatting.YELLOW).append(Text.literal(" - Stop and keep current recording." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer record cancel").formatted(Formatting.YELLOW).append(Text.literal(" - Cancel and discard current recording." ).formatted(Formatting.WHITE)));
-    source.sendFeedback(Text.literal("/trailblazer record status").formatted(Formatting.YELLOW).append(Text.literal(" - Show current recording status." ).formatted(Formatting.WHITE)));
-    source.sendFeedback(Text.literal("/trailblazer save [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Save a local recording to the server (omit name to save the most recent local recording)." ).formatted(Formatting.WHITE)));
-    source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path using client renderer (quote names with spaces).").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer hide [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Hide one path or all (no name).\n").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer rendermode <mode>").formatted(Formatting.YELLOW).append(Text.literal(" - Change client render mode. Modes: trail | markers | arrows").formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer record status").formatted(Formatting.YELLOW).append(Text.literal(" - Show current recording status." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer list").formatted(Formatting.YELLOW).append(Text.literal(" - List your local and shared paths.").formatted(Formatting.WHITE)));
-    source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Get the start and end coordinates of a path (quote names with spaces).").formatted(Formatting.WHITE)));
-    source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Delete or hide a path locally (quote names with spaces).").formatted(Formatting.WHITE)));
-    source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a local or imported path (quote names with spaces).").formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path using client renderer (quote names with spaces)." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer hide [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Hide one path or all (no name)." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Get the start and end coordinates of a path (quote names with spaces)." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a local or imported path (quote names with spaces)." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Delete or hide a path locally (quote names with spaces)." ).formatted(Formatting.WHITE)));
+
+        // Repeated/auxiliary flow as requested: list -> info -> delete -> rename
+        source.sendFeedback(Text.literal("/trailblazer list").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) List your local and shared paths.").formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Show path start/end coordinates.").formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Delete or hide a path locally.").formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Rename a local or imported path.").formatted(Formatting.WHITE)));
+
+        // Other useful commands
+        source.sendFeedback(Text.literal("/trailblazer color <name> <color>").formatted(Formatting.YELLOW).append(Text.literal(" - Set color for a path (local update; syncs to server if server-owned)." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer share <name> <players>").formatted(Formatting.YELLOW).append(Text.literal(" - Send a share request for a path to other players (via server)." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer rendermode <mode>").formatted(Formatting.YELLOW).append(Text.literal(" - Change client render mode. Modes: trail | markers | arrows" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer help").formatted(Formatting.YELLOW).append(Text.literal(" - Show this help." ).formatted(Formatting.WHITE)));
         return 1;
     }
 
@@ -515,54 +519,6 @@ public final class TrailblazerCommand {
             }
         }
         return 1;
-    }
-
-    private static int savePath(FabricClientCommandSource source, String name) {
-        PathData path = null;
-        if (name != null && !name.isBlank()) {
-            // Find a specific path by name
-            path = pathManager.getMyPaths().stream()
-                .filter(p -> p.getPathName().equalsIgnoreCase(name))
-                .findFirst()
-                .orElse(null);
-
-            if (path == null) {
-                source.sendError(Text.literal("Local path not found: " + name));
-                return 0;
-            }
-        } else {
-            // Find the most recent local path if no name is given
-            path = pathManager.getMyPaths().stream()
-                .filter(p -> pathManager.isLocalPath(p.getPathId()))
-                .max((p1, p2) -> Long.compare(p1.getCreationTimestamp(), p2.getCreationTimestamp()))
-                .orElse(null);
-
-            if (path == null) {
-                source.sendError(Text.literal("No local paths available to save."));
-                return 0;
-            }
-        }
-
-        // Prevent saving a path that is already backed by the server
-        if (pathManager.isServerBacked(path.getPathId())) {
-            source.sendError(Text.literal("Path '" + path.getPathName() + "' is already saved to the server."));
-            return 0;
-        }
-
-        try {
-            String json = new Gson().toJson(path);
-            if (ClientPlayNetworking.canSend(SavePathRequestPayload.ID)) {
-                ClientPlayNetworking.send(new SavePathRequestPayload(json));
-                source.sendFeedback(Text.literal("Save request sent to server for '" + path.getPathName() + "'.").formatted(Formatting.GREEN));
-                return 1;
-            } else {
-                source.sendError(Text.literal("Server does not support saving paths via client requests."));
-                return 0;
-            }
-        } catch (Exception ex) {
-            source.sendError(Text.literal("Failed to send save request: " + ex.getMessage()));
-            return 0;
-        }
     }
 
     private static int renamePath(FabricClientCommandSource source, String oldName, String newName) {

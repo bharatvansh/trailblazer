@@ -10,4 +10,7 @@ commands:
   trailblazer:
     description: "Unified Path-Sharing command (preferred). Subcommands: view, hide, delete, rename, share, rendermode, color, info, record"
     usage: /<command> [subcommand]
+  tbl:
+    description: "Alias for /trailblazer"
+    usage: /<command> [subcommand]
 # --- END ADDITION ---
