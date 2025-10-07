@@ -7,7 +7,7 @@ plugins {
 // This was what was getting lost before.
 dependencies {
     // We need the Paper API to write the plugin code.
-    compileOnly 'io.papermc.paper:paper-api:1.21-R0.1-SNAPSHOT'
+    compileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
 
     // We need our own API module.
     implementation project(':trailblazer-api')
