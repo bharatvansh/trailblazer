@@ -1,0 +1,10 @@
+Compiled from "Tessellator.java"
+public class net.minecraft.client.render.Tessellator {
+  public static void initialize();
+  public static net.minecraft.client.render.Tessellator getInstance();
+  public net.minecraft.client.render.Tessellator(int);
+  public net.minecraft.client.render.Tessellator();
+  public net.minecraft.client.render.BufferBuilder begin(com.mojang.blaze3d.vertex.VertexFormat$DrawMode, com.mojang.blaze3d.vertex.VertexFormat);
+  public void clear();
+}
+

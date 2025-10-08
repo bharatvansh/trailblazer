@@ -5,7 +5,7 @@ import java.util.Optional;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.joml.Vector3f;
+// Using DustParticleEffect int color constructor (1.21.8)
 
 import com.trailblazer.api.PathData;
 import com.trailblazer.api.Vector3d;
@@ -13,18 +13,19 @@ import com.trailblazer.fabric.ClientPathManager;
 import com.trailblazer.fabric.RenderSettingsManager;
 
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BufferRenderer;
-import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.render.BuiltBuffer;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.particle.DustParticleEffect;
-import net.minecraft.particle.ParticleTypes;
-import net.minecraft.util.math.Vec3d;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.world.ClientWorld;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.particle.DustParticleEffect;
+import net.minecraft.util.math.Vec3d;
+// Removed low-level buffer rendering imports for compatibility
 
 /**
  * Handles the client-side rendering of paths in the world.
@@ -38,10 +39,8 @@ public class PathRenderer {
 
     private DustParticleEffect effectFor(int argb) {
         return COLOR_CACHE.computeIfAbsent(argb, c -> {
-            float r = ((c >> 16) & 0xFF) / 255f;
-            float g = ((c >> 8) & 0xFF) / 255f;
-            float b = (c & 0xFF) / 255f;
-            return new DustParticleEffect(new Vector3f(r, g, b), 1.0f);
+            int rgb = c & 0xFFFFFF; // strip alpha
+            return new DustParticleEffect(rgb, 1.0f);
         });
     }
 
@@ -53,165 +52,112 @@ public class PathRenderer {
 
     public void initialize() {
         WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
-            renderActivePaths(context.world());
+            renderActivePaths(context);
         });
     }
 
-    private void renderActivePaths(ClientWorld world) {
+    private void renderActivePaths(WorldRenderContext context) {
+        ClientWorld world = (ClientWorld) context.world();
         PathData livePath = clientPathManager.getLivePath();
         if (livePath != null) {
-            renderPath(livePath, world, true);
+            renderPath(livePath, context, true);
         }
 
         for (PathData path : clientPathManager.getVisiblePaths()) {
-            renderPath(path, world, false);
+            renderPath(path, context, false);
         }
     }
 
-    private void renderPath(PathData path, ClientWorld world, boolean isLive) {
+    private void renderPath(PathData path, WorldRenderContext context, boolean isLive) {
         if (path.getPoints().size() < 2) {
             return;
         }
 
         switch (renderSettingsManager.getRenderMode()) {
             case DASHED_LINE:
-                renderDashedLine(path, world, isLive);
+                renderDashedLine(path, context, isLive);
                 break;
             case SPACED_MARKERS:
-                renderSpacedMarkers(path, world, isLive);
+                renderSpacedMarkers(path, (ClientWorld) context.world(), isLive);
                 break;
             case DIRECTIONAL_ARROWS:
-                renderDirectionalArrows(path, world, isLive);
+                renderDirectionalArrows(path, (ClientWorld) context.world(), isLive);
                 break;
         }
     }
 
     /**
-     * Renders the path as dashed line segments using custom quad geometry.
-     * This avoids animated particles for better performance.
+     * Renders the path as dashed line quads (billboarded) using the 1.21.8 buffer pipeline.
+     * Depth testing remains enabled so dashes are occluded by world geometry.
      */
-    private void renderDashedLine(PathData path, ClientWorld world, boolean isLive) {
+    private void renderDashedLine(PathData path, WorldRenderContext context, boolean isLive) {
         List<Vector3d> points = path.getPoints();
         final int color = path.getColorArgb();
-        
-        // Extract color components
+
         float r = ((color >> 16) & 0xFF) / 255f;
         float g = ((color >> 8) & 0xFF) / 255f;
         float b = (color & 0xFF) / 255f;
         float a = 1.0f;
-        
-        // Use orange for live paths
         if (isLive) {
-            r = 1.0f;
-            g = 0.5f;
-            b = 0.0f;
+            r = 1.0f; g = 0.5f; b = 0.0f;
         }
-        
-    // Setup rendering state (keep depth test ENABLED so dashes are occluded by terrain/blocks)
-    RenderSystem.enableBlend();
-    RenderSystem.defaultBlendFunc();
-    RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-    // Depth test intentionally left enabled to avoid ESP/X-ray effect
-    RenderSystem.disableCull();
-        
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-        
-        // Get camera position for billboarding
+
         MinecraftClient client = MinecraftClient.getInstance();
         Vec3d camera = client.gameRenderer.getCamera().getPos();
-        
-        // Render dashed segments
-        double dashLength = 2.0; // Length of each dash
-        double gapLength = 1.0;  // Length of each gap
+        var entry = context.matrixStack().peek();
+
+        Tessellator tess = Tessellator.getInstance();
+        BufferBuilder buffer = tess.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+
+        double dashLength = 2.0;
+        double gapLength = 1.0;
         double segmentLength = dashLength + gapLength;
 
-        boolean hasVertices = false;
-        
+        boolean any = false;
         for (int i = 0; i < points.size() - 1; i++) {
             Vec3d start = new Vec3d(points.get(i).getX(), points.get(i).getY(), points.get(i).getZ());
             Vec3d end = new Vec3d(points.get(i + 1).getX(), points.get(i + 1).getY(), points.get(i + 1).getZ());
-            
-            double totalDistance = start.distanceTo(end);
-            if (totalDistance < 0.1) continue; // Skip very short segments
-            
-            Vec3d direction = end.subtract(start).normalize();
-            
-            // Create dashes along the segment
-            for (double d = 0; d < totalDistance; d += segmentLength) {
-                double dashEnd = Math.min(d + dashLength, totalDistance);
-                
-                Vec3d dashStart = start.add(direction.multiply(d));
-                Vec3d dashEndPos = start.add(direction.multiply(dashEnd));
-                
-                // Create a small quad for this dash
-                hasVertices |= renderDashQuad(buffer, dashStart, dashEndPos, camera, r, g, b, a);
+            double total = start.distanceTo(end);
+            if (total < 0.1) continue;
+            Vec3d dir = end.subtract(start).normalize();
+
+            for (double d = 0; d < total; d += segmentLength) {
+                double dashEnd = Math.min(d + dashLength, total);
+                Vec3d ds = start.add(dir.multiply(d));
+                Vec3d de = start.add(dir.multiply(dashEnd));
+
+                // Billboard quad facing camera
+                // Stable world-space width vector: perpendicular to path using fixed up axis
+                Vec3d right = dir.crossProduct(new Vec3d(0, 1, 0));
+                if (right.lengthSquared() < 1.0e-6) {
+                    right = dir.crossProduct(new Vec3d(0, 0, 1));
+                }
+                if (right.lengthSquared() < 1.0e-6) continue;
+                right = right.normalize().multiply(0.10); // width
+
+                // World-space positions, transformed by the world matrix stack
+                Vec3d v1 = ds.add(right);
+                Vec3d v2 = ds.subtract(right);
+                Vec3d v3 = de.subtract(right);
+                Vec3d v4 = de.add(right);
+
+                buffer.vertex(entry, (float) v1.x, (float) v1.y, (float) v1.z).color(r, g, b, a);
+                buffer.vertex(entry, (float) v2.x, (float) v2.y, (float) v2.z).color(r, g, b, a);
+                buffer.vertex(entry, (float) v3.x, (float) v3.y, (float) v3.z).color(r, g, b, a);
+                buffer.vertex(entry, (float) v4.x, (float) v4.y, (float) v4.z).color(r, g, b, a);
+                any = true;
             }
         }
 
-    var rendered = buffer.end();
-        if (hasVertices) {
-            BufferRenderer.drawWithGlobalProgram(rendered);
+        BuiltBuffer built = buffer.end();
+        if (any) {
+            // Use a quads layer; depth test is enabled by default for debug quads
+            RenderLayer.getDebugQuads().draw(built);
         }
-        rendered.close();
-        
-    // Restore rendering state (depth test was never disabled)
-    RenderSystem.enableCull();
-    RenderSystem.disableBlend();
+        built.close();
     }
     
-    /**
-     * Renders a single dash as a small quad billboard facing the camera.
-     */
-    private boolean renderDashQuad(BufferBuilder buffer, Vec3d start, Vec3d end, Vec3d camera,
-                                   float r, float g, float b, float a) {
-        Vec3d centerWorld = start.add(end).multiply(0.5);
-        Vec3d toCamera = camera.subtract(centerWorld);
-        if (toCamera.lengthSquared() < 1.0e-6) {
-            toCamera = new Vec3d(0.0, 1.0, 0.0);
-        }
-
-        // Create a perpendicular vector for quad width
-        Vec3d direction = end.subtract(start);
-        double lengthSq = direction.lengthSquared();
-        if (lengthSq < 1.0e-6) {
-            return false;
-        }
-        direction = direction.normalize();
-
-        Vec3d right = direction.crossProduct(toCamera);
-        if (right.lengthSquared() < 1.0e-6) {
-            right = direction.crossProduct(new Vec3d(0.0, 1.0, 0.0));
-            if (right.lengthSquared() < 1.0e-6) {
-                right = direction.crossProduct(new Vec3d(0.0, 0.0, 1.0));
-            }
-        }
-        if (right.lengthSquared() < 1.0e-6) {
-            return false;
-        }
-        right = right.normalize();
-
-        double width = 0.1; // Width of the dash quad
-        Vec3d rightOffset = right.multiply(width);
-
-        // Positions relative to camera for the current render pass
-        Vec3d startRelative = start.subtract(camera);
-        Vec3d endRelative = end.subtract(camera);
-
-        // Create quad vertices
-        Vec3d v1 = startRelative.add(rightOffset);
-        Vec3d v2 = startRelative.subtract(rightOffset);
-        Vec3d v3 = endRelative.subtract(rightOffset);
-        Vec3d v4 = endRelative.add(rightOffset);
-
-        // Add vertices to buffer (counter-clockwise)
-        buffer.vertex((float) v1.x, (float) v1.y, (float) v1.z).color(r, g, b, a);
-        buffer.vertex((float) v2.x, (float) v2.y, (float) v2.z).color(r, g, b, a);
-        buffer.vertex((float) v3.x, (float) v3.y, (float) v3.z).color(r, g, b, a);
-        buffer.vertex((float) v4.x, (float) v4.y, (float) v4.z).color(r, g, b, a);
-
-        return true;
-    }
+    // Removed buffer-based dash quad renderer for compatibility.
 
     /**
      * Renders the path as particles spaced at regular intervals.
@@ -231,9 +177,9 @@ public class PathRenderer {
 
             if (lastPoint == null || distanceSinceLastMarker >= spacing) {
                 if (isLive) {
-                    world.addParticle(ParticleTypes.FLAME, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
+                    world.addParticleClient(ParticleTypes.FLAME, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
                 } else {
-                    world.addParticle(trailEffect, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
+                    world.addParticleClient(trailEffect, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
                 }
                 distanceSinceLastMarker = 0.0;
             }
@@ -298,6 +244,6 @@ public class PathRenderer {
         double vy = direction.y * speed;
         double vz = direction.z * speed;
 
-        world.addParticle(ParticleTypes.FLAME, position.x, position.y, position.z, vx, vy, vz);
+        world.addParticleClient(ParticleTypes.FLAME, position.x, position.y, position.z, vx, vy, vz);
     }
 }

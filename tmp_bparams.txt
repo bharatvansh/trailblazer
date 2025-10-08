@@ -1,0 +1,10 @@
+Compiled from "BuiltBuffer.java"
+public class net.minecraft.client.render.BuiltBuffer implements java.lang.AutoCloseable {
+  public net.minecraft.client.render.BuiltBuffer(net.minecraft.client.util.BufferAllocator$CloseableBuffer, net.minecraft.client.render.BuiltBuffer$DrawParameters);
+  public java.nio.ByteBuffer getBuffer();
+  public java.nio.ByteBuffer getSortedBuffer();
+  public net.minecraft.client.render.BuiltBuffer$DrawParameters getDrawParameters();
+  public net.minecraft.client.render.BuiltBuffer$SortState sortQuads(net.minecraft.client.util.BufferAllocator, com.mojang.blaze3d.systems.VertexSorter);
+  public void close();
+}
+
