@@ -50,43 +50,43 @@ The system consists of:
 When the Player has fabric client mod installed and the server has the plugin installed.
 
 #### This Setup unlocks:
-- [x] All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
-- [x] Sharing Paths with other players on the server.
-- [x] Extensive Path management UI.
-- [x] Commands for all functionalities.
+- ✅ All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
+- ✅ Sharing Paths with other players on the server.
+- ✅ Extensive Path management UI.
+- ✅ Commands for all functionalities.
 - Enhanced Features like:
-  - [x] Beautiful path rendering.
-  - [x] Keybinds for quick actions.
-  - [x] Live Path rendering when recording.
-  - [x] And more...
+  - ✅ Beautiful path rendering.
+  - ✅ Keybinds for quick actions.
+  - ✅ Live Path rendering when recording.
+  - ✅ And more...
 
 ### **Client Only:** The Seconds Best
 When the Player has fabric client mod installed but the server does not have the plugin installed.
 
 #### This Setup unlocks:
-- [x] All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
-- [ ] Sharing Paths with other players on the server.
-- [x] Extensive Path management UI.
-- [x] Commands for all functionalities.
+- ✅ All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
+- ❌ Sharing Paths with other players on the server.
+- ✅ Extensive Path management UI.
+- ✅ Commands for all functionalities.
 - Enhanced Features like:
-  - [x] Beautiful path rendering.
-  - [x] Keybinds for quick actions.
-  - [x] Live Path rendering when recording.
-  - [ ] And more...
+  - ✅ Beautiful path rendering.
+  - ✅ Keybinds for quick actions.
+  - ✅ Live Path rendering when recording.
+  - ❌ And more...
 
 ### **Server Only:** Basic Functionality
 When the Player does not have fabric client mod installed but the server has the plugin installed.
 
 #### This Setup unlocks:
-- [x] All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
-- [x] Sharing Paths with other players on the server.
-- [ ] Extensive Path management UI.
-- [x] Commands for all functionalities.
+- ✅ All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
+- ✅ Sharing Paths with other players on the server.
+- ❌ Extensive Path management UI.
+- ✅ Commands for all functionalities.
 - Enhanced Features like:
-  - [ ] Beautiful path rendering.
-  - [ ] Keybinds for quick actions.
-  - [ ] Live Path rendering when recording.
-  - [ ] And more...
+  - ❌ Beautiful path rendering.
+  - ❌ Keybinds for quick actions.
+  - ❌ Live Path rendering when recording.
+  - ❌ And more...
 
 ## Usage
 
