@@ -2,10 +2,12 @@
 // This is the crucial part that was missing.
 pluginManagement {
     repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
         mavenCentral()
         gradlePluginPortal()
-        // This is the line that fixes the error. It points to Fabric's repository.
-        maven { url = 'https://maven.fabricmc.net/' }
     }
 }
 
