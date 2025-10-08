@@ -104,7 +104,6 @@ public class PathRenderer {
 
         MinecraftClient client = MinecraftClient.getInstance();
         Vec3d camera = client.gameRenderer.getCamera().getPos();
-        var entry = context.matrixStack().peek();
 
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buffer = tess.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
@@ -127,24 +126,31 @@ public class PathRenderer {
                 Vec3d de = start.add(dir.multiply(dashEnd));
 
                 // Billboard quad facing camera
-                // Stable world-space width vector: perpendicular to path using fixed up axis
-                Vec3d right = dir.crossProduct(new Vec3d(0, 1, 0));
+                // Camera-facing billboard width vector for visual consistency
+                Vec3d center = ds.add(de).multiply(0.5);
+                Vec3d toCam = camera.subtract(center);
+                if (toCam.lengthSquared() < 1.0e-6) toCam = new Vec3d(0, 1, 0);
+                Vec3d right = dir.crossProduct(toCam);
                 if (right.lengthSquared() < 1.0e-6) {
-                    right = dir.crossProduct(new Vec3d(0, 0, 1));
+                    right = dir.crossProduct(new Vec3d(0, 1, 0));
+                    if (right.lengthSquared() < 1.0e-6) right = dir.crossProduct(new Vec3d(0, 0, 1));
                 }
                 if (right.lengthSquared() < 1.0e-6) continue;
                 right = right.normalize().multiply(0.10); // width
 
-                // World-space positions, transformed by the world matrix stack
-                Vec3d v1 = ds.add(right);
-                Vec3d v2 = ds.subtract(right);
-                Vec3d v3 = de.subtract(right);
-                Vec3d v4 = de.add(right);
+                // Positions relative to camera for current pass (no matrix entry)
+                Vec3d sRel = ds.subtract(camera);
+                Vec3d eRel = de.subtract(camera);
 
-                buffer.vertex(entry, (float) v1.x, (float) v1.y, (float) v1.z).color(r, g, b, a);
-                buffer.vertex(entry, (float) v2.x, (float) v2.y, (float) v2.z).color(r, g, b, a);
-                buffer.vertex(entry, (float) v3.x, (float) v3.y, (float) v3.z).color(r, g, b, a);
-                buffer.vertex(entry, (float) v4.x, (float) v4.y, (float) v4.z).color(r, g, b, a);
+                Vec3d v1 = sRel.add(right);
+                Vec3d v2 = sRel.subtract(right);
+                Vec3d v3 = eRel.subtract(right);
+                Vec3d v4 = eRel.add(right);
+
+                buffer.vertex((float) v1.x, (float) v1.y, (float) v1.z).color(r, g, b, a);
+                buffer.vertex((float) v2.x, (float) v2.y, (float) v2.z).color(r, g, b, a);
+                buffer.vertex((float) v3.x, (float) v3.y, (float) v3.z).color(r, g, b, a);
+                buffer.vertex((float) v4.x, (float) v4.y, (float) v4.z).color(r, g, b, a);
                 any = true;
             }
         }
