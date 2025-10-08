@@ -44,3 +44,7 @@ bin/
 # Local review documents (ignore working copies)
 COMPREHENSIVE_REVIEW.md
 PLAYER_FRIENDLY_REVIEW.md
+
+# Workspace tooling and temp files
+.roo/
+tmp_*.txt

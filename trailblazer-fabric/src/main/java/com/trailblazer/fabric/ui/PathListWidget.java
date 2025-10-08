@@ -91,7 +91,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         context.fill(left, bottom - 1, right, bottom, SEPARATOR);
 
         if (targetScrollAmount < 0.0) {
-            targetScrollAmount = this.getScrollAmount();
+            targetScrollAmount = this.getScrollY();
         }
 
         double dt = Math.max(0.0, Math.min(delta, 1.0));
@@ -103,7 +103,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             if (Math.abs(scrollVelocity) < MIN_VELOCITY) scrollVelocity = 0.0;
         }
 
-        double max = this.getMaxScroll();
+        double max = this.getMaxScrollY();
         if (targetScrollAmount <= 0.0) {
             targetScrollAmount = 0.0;
             if (scrollVelocity < 0) scrollVelocity *= -0.2;
@@ -111,7 +111,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             targetScrollAmount = max;
             if (scrollVelocity > 0) scrollVelocity *= -0.2;
         }
-        this.setScrollAmount(targetScrollAmount);
+        this.setScrollY(targetScrollAmount);
         int contentTop = top + 1;
         int contentBottom = bottom - 1;
         context.enableScissor(left, contentTop, right, contentBottom);
@@ -121,7 +121,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
 
     public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
         if (!this.isMouseOver(mouseX, mouseY)) return false;
-        if (targetScrollAmount < 0.0) targetScrollAmount = this.getScrollAmount();
+        if (targetScrollAmount < 0.0) targetScrollAmount = this.getScrollY();
         double base = Math.max(this.itemHeight * 0.35, 8.0);
         double deltaV = -amount * base * 1.2;
         if (deltaV > 180.0) deltaV = 180.0;
@@ -137,12 +137,12 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
     }
 
     @Override
-    protected int getRowTop(int index) {
+    public int getRowTop(int index) {
         return super.getRowTop(index) - 3;
     }
 
     @Override
-    protected int getRowBottom(int index) {
+    public int getRowBottom(int index) {
         return super.getRowBottom(index) - 3;
     }
 
