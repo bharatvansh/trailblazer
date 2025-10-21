@@ -201,6 +201,26 @@ public class ClientPathManager {
         }
     }
 
+    public void clearLocalPaths() {
+        recording = false;
+        localRecording = null;
+        lastCapturedPoint = null;
+        stopLivePath();
+        List<UUID> toRemove = new ArrayList<>();
+        for (Map.Entry<UUID, PathOrigin> entry : pathOrigins.entrySet()) {
+            PathOrigin origin = entry.getValue();
+            if (origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED) {
+                toRemove.add(entry.getKey());
+            }
+        }
+        for (UUID id : toRemove) {
+            myPaths.remove(id);
+            visiblePaths.remove(id);
+            pathOrigins.remove(id);
+        }
+        recalculateNextPathNumber();
+    }
+
     /** Called each client tick to append points when recording locally. */
     public void tickRecording(MinecraftClient client) {
         if (!recording || localRecording == null) return;

@@ -180,7 +180,7 @@ public class PathCommand implements CommandExecutor {
         }
         var pr = CommandUtils.parseQuoted(args, 1, true);
         String pathName = pr.value;
-        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getUniqueId()), pathName);
+        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()), pathName);
 
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
@@ -209,7 +209,7 @@ public class PathCommand implements CommandExecutor {
         String pathName = pr.value;
         var pr2 = CommandUtils.parseQuoted(args, pr.nextIndex, true);
         String colorArg = pr2.value;
-        List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
     Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, pathName);
         if (pathOpt.isEmpty()) {
             player.sendMessage(Component.text("Path '" + pathName + "' not found.", NamedTextColor.RED));
@@ -223,7 +223,7 @@ public class PathCommand implements CommandExecutor {
         }
         path.setColorArgb(parsed.get());
         // Persist by rewriting file (reuse rename logic pattern)
-        pathDataManager.savePath(path);
+        pathDataManager.savePath(player.getWorld().getUID(), path);
         player.sendMessage(Component.text("Color for path '" + path.getPathName() + "' set to " + com.trailblazer.api.PathColors.nameOrHex(path.getColorArgb()), NamedTextColor.GREEN));
         
         plugin.getPathRendererManager().startRendering(player, path);
@@ -240,7 +240,7 @@ public class PathCommand implements CommandExecutor {
         }
         var pr = CommandUtils.parseQuoted(args, 1, true);
         String pathName = pr.value;
-        List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
     Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, pathName);
 
         if (pathOpt.isPresent()) {
@@ -271,11 +271,11 @@ public class PathCommand implements CommandExecutor {
         }
         var pr = CommandUtils.parseQuoted(args, 1, true);
         String pathName = pr.value;
-        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getUniqueId()), pathName);
+        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()), pathName);
 
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
-            boolean deleted = pathDataManager.deletePath(player.getUniqueId(), path.getPathId());
+            boolean deleted = pathDataManager.deletePath(player.getWorld().getUID(), player.getUniqueId(), path.getPathId());
             if (deleted) {
                 if (!plugin.getServerPacketHandler().isModdedPlayer(player)) {
                     plugin.getPathRendererManager().stopRendering(player);
@@ -295,7 +295,7 @@ public class PathCommand implements CommandExecutor {
             return;
         }
 
-        List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
         if (paths.isEmpty()) {
             player.sendMessage(Component.text("You have no saved paths on this server.", NamedTextColor.GRAY));
             return;
@@ -344,7 +344,7 @@ public class PathCommand implements CommandExecutor {
         var pr2 = CommandUtils.parseQuoted(args, pr.nextIndex, true);
         String rawNewName = pr2.value;
         String sanitizedNewName = com.trailblazer.api.PathNameSanitizer.sanitize(rawNewName);
-        List<PathData> paths = pathDataManager.loadPaths(player.getUniqueId());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
 
         // Check if a path with the new name already exists to avoid duplicates.
         if (paths.stream().anyMatch(p -> p.getPathName().equalsIgnoreCase(sanitizedNewName))) {
@@ -356,7 +356,7 @@ public class PathCommand implements CommandExecutor {
 
         if (pathOpt.isPresent()) {
             // A player can rename any path in their list. For shared paths, this is just a local alias.
-            pathDataManager.renamePath(player.getUniqueId(), pathOpt.get().getPathId(), sanitizedNewName);
+            pathDataManager.renamePath(player.getWorld().getUID(), player.getUniqueId(), pathOpt.get().getPathId(), sanitizedNewName);
             if (!sanitizedNewName.equals(rawNewName)) {
                 player.sendMessage(Component.text("Path '" + oldName + "' renamed to sanitized '" + sanitizedNewName + "' (invalid characters were adjusted).", NamedTextColor.GREEN));
             } else {
@@ -436,7 +436,7 @@ public class PathCommand implements CommandExecutor {
             return;
         }
 
-        Optional<PathData> pathOpt = pathDataManager.loadPaths(player.getUniqueId()).stream()
+        Optional<PathData> pathOpt = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
                 .filter(p -> p.getPathName().equalsIgnoreCase(pathName))
                 .findFirst();
 
@@ -453,7 +453,7 @@ public class PathCommand implements CommandExecutor {
                         continue;
                     }
 
-                    PathDataManager.SharedCopyResult result = pathDataManager.ensureSharedCopy(path, targetPlayer.getUniqueId(), targetPlayer.getName());
+                    PathDataManager.SharedCopyResult result = pathDataManager.ensureSharedCopy(path, targetPlayer.getUniqueId(), targetPlayer.getName(), targetPlayer.getWorld().getUID());
                     PathData sharedCopy = result.getPath();
                     if (!result.wasCreated()) {
                         // The target already has a copy (idempotent behavior)

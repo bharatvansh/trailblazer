@@ -50,8 +50,8 @@ public class RecordingManager {
             return null; // discard too-short or cancelled
         }
         PathData data = new PathData(rec.pathId, rec.name, player.getUniqueId(), player.getName(), rec.startTime,
-                dimensionKey(rec.world), new ArrayList<>(rec.points), PathColors.assignColorFor(rec.pathId));
-        dataManager.savePath(data);
+            dimensionKey(rec.world), new ArrayList<>(rec.points), PathColors.assignColorFor(rec.pathId));
+        dataManager.savePath(rec.world.getUID(), data);
         return data;
     }
 

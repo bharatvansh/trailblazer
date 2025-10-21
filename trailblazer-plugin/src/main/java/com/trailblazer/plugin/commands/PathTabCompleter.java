@@ -55,7 +55,7 @@ public class PathTabCompleter implements TabCompleter {
         case "delete":
         case "rename":
         case "info":
-            var all = pathDataManager.loadPaths(player.getUniqueId()).stream();
+            var all = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream();
             var suggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(all, args[1], 50).stream()
                 .map(n -> n.contains(" ") ? ('"' + n + '"') : n)
                 .collect(Collectors.toList());
@@ -63,14 +63,14 @@ public class PathTabCompleter implements TabCompleter {
                 case "rendermode":
                     return StringUtil.copyPartialMatches(args[1], List.of("trail", "arrows"), new ArrayList<>());
         case "color":
-            var colorSuggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(pathDataManager.loadPaths(player.getUniqueId()).stream(), args[1], 50).stream()
+            var colorSuggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream(), args[1], 50).stream()
                 .map(n -> n.contains(" ") ? ('"' + n + '"') : n)
                 .collect(Collectors.toList());
             return StringUtil.copyPartialMatches(args[1], colorSuggestions, new ArrayList<>());
                 case "record":
                     return StringUtil.copyPartialMatches(args[1], RECORD_SUB, new ArrayList<>());
                 case "share":
-            var shareSuggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(pathDataManager.loadPaths(player.getUniqueId()).stream(), args[1], 50).stream()
+            var shareSuggestions = com.trailblazer.api.PathNameMatcher.getSuggestions(pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream(), args[1], 50).stream()
                 .map(n -> n.contains(" ") ? ('"' + n + '"') : n)
                 .collect(Collectors.toList());
             return StringUtil.copyPartialMatches(args[1], shareSuggestions, new ArrayList<>());

@@ -159,3 +159,15 @@ All configuration files have been successfully updated to support Minecraft 1.21
 - ⚠️ Build verification blocked by network restrictions (expected to work in normal environment)
 
 The migration is complete and ready for building and testing in an environment with proper internet access.
+
+## Server Storage Behavior Change (Per-World Isolation)
+
+As of 1.21.8 hardening, the Paper plugin now stores paths per-world instead of server-wide to prevent cross-world leakage:
+
+- Previous location: `plugins/Trailblazer/paths/*.json` (server-wide)
+- New location: `plugins/Trailblazer/paths/<world-uuid>/*.json` (per-world)
+
+Notes:
+- Existing server-wide files are not automatically migrated. Paths will only appear in the world they are saved to going forward.
+- If you need legacy paths in a specific world, move the corresponding `.json` files from `plugins/Trailblazer/paths/` into the target folder `plugins/Trailblazer/paths/<world-uuid>/` while the server is stopped.
+- World UUID can be obtained at runtime via `World#getUID()`; the folder name matches this UUID.

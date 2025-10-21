@@ -18,6 +18,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.minecraft.util.WorldSavePath;
 
 
 public class TrailblazerFabricClient implements ClientModInitializer {
@@ -85,11 +86,11 @@ public class TrailblazerFabricClient implements ClientModInitializer {
                 ClientPacketHandler.resetReliableActionState();
                 clientPathManager.setLocalPlayerUuid(client.getSession().getUuidOrNull());
                 clientPathManager.applyServerSync(java.util.Collections.emptyList());
+                clientPathManager.clearLocalPaths();
                 if (client.getServer() != null) {
-                    String levelName = client.getServer().getSaveProperties().getLevelName();
-                    java.nio.file.Path worldPath = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir()
-                            .resolve("saves").resolve(levelName);
-                    persistence.setWorldDirectory(worldPath.toAbsolutePath());
+                    // Use the authoritative save path from the integrated server to avoid folder/display name mismatches
+                    java.nio.file.Path worldPath = client.getServer().getSavePath(WorldSavePath.ROOT);
+                    persistence.setWorldDirectory(worldPath);
                     persistence.loadAll();
                 } else {
                     String serverKey = handler.getConnection().getAddress().toString().replaceAll("[^a-zA-Z0-9-_]", "_");
@@ -107,6 +108,7 @@ public class TrailblazerFabricClient implements ClientModInitializer {
                 clientPathManager.applyServerSync(java.util.Collections.emptyList());
                 clientPathManager.setLocalPlayerUuid(null);
                 persistence.saveAll();
+                clientPathManager.clearLocalPaths();
                 persistence.setWorldDirectory(null);
                 config.save(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir());
             });

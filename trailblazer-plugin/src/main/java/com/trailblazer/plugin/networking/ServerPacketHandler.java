@@ -92,7 +92,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             plugin.getLogger().info("Received HandshakePayload from " + player.getName());
 
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-                List<PathData> allPaths = dataManager.loadPaths(player.getUniqueId());
+                java.util.UUID worldUid = player.getWorld().getUID();
+                List<PathData> allPaths = dataManager.loadPaths(worldUid, player.getUniqueId());
                 if (!allPaths.isEmpty()) {
                     java.util.Set<java.util.UUID> ownedOrigins = new java.util.HashSet<>();
                     for (PathData p : allPaths) {
@@ -125,10 +126,11 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                     String raw = new String(message, java.nio.charset.StandardCharsets.UTF_8).trim();
                     pathId = UUID.fromString(raw);
                 }
-                List<PathData> paths = dataManager.loadPaths(player.getUniqueId());
+                java.util.UUID worldUid = player.getWorld().getUID();
+                List<PathData> paths = dataManager.loadPaths(worldUid, player.getUniqueId());
                 boolean owned = paths.stream().anyMatch(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(player.getUniqueId()));
                 if (owned) {
-                    boolean removed = dataManager.deletePath(player.getUniqueId(), pathId);
+                    boolean removed = dataManager.deletePath(worldUid, player.getUniqueId(), pathId);
                     if (removed) {
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
                             sendPathDeleted(player, pathId);
@@ -398,7 +400,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 playerIds.add(new UUID(buffer.getLong(), buffer.getLong()));
             }
 
-            List<PathData> paths = dataManager.loadPaths(sender.getUniqueId());
+            java.util.UUID senderWorldUid = sender.getWorld().getUID();
+            List<PathData> paths = dataManager.loadPaths(senderWorldUid, sender.getUniqueId());
             paths.stream()
                 .filter(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(sender.getUniqueId()))
                 .findFirst()
@@ -409,7 +412,13 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
                     for (UUID targetPlayerId : playerIds) {
                         String targetName = resolvePlayerName(targetPlayerId);
-                        PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetPlayerId, targetName);
+                        java.util.UUID targetWorldUid = null;
+                        Player targetOnline = plugin.getServer().getPlayer(targetPlayerId);
+                        if (targetOnline != null && targetOnline.isOnline()) {
+                            try { targetWorldUid = targetOnline.getWorld().getUID(); } catch (Exception ignored) {}
+                        }
+                        if (targetWorldUid == null) { targetWorldUid = senderWorldUid; }
+                        PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetPlayerId, targetName, targetWorldUid);
                         if (!result.wasCreated()) {
                             alreadyHad.add(targetName);
                             continue;
@@ -438,7 +447,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                     }
 
                     if (updated) {
-                        dataManager.savePath(path);
+                        dataManager.savePath(senderWorldUid, path);
                     }
 
                     boolean success = !newlyShared.isEmpty();
@@ -476,7 +485,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             buffer.get(nameBytes);
             String newName = new String(nameBytes, StandardCharsets.UTF_8);
 
-            List<PathData> updatedPaths = dataManager.updateMetadata(player.getUniqueId(), pathId, newName, color);
+            java.util.UUID worldUid = player.getWorld().getUID();
+            List<PathData> updatedPaths = dataManager.updateMetadata(worldUid, player.getUniqueId(), pathId, newName, color);
             if (updatedPaths != null) {
                 PathData updatedPath = updatedPaths.stream().filter(p -> p.getPathId().equals(pathId)).findFirst().orElse(null);
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
@@ -564,7 +574,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             serverCopy.setOrigin(clientPath.getPathId(), clientPath.getOwnerUUID(), clientPath.getOwnerName());
 
             // Persist the new server-authoritative copy.
-            dataManager.savePath(serverCopy);
+            java.util.UUID worldUid = sender.getWorld().getUID();
+            dataManager.savePath(worldUid, serverCopy);
 
             // Send a success result back to the client with the new, authoritative path data.
             plugin.getServer().getScheduler().runTask(plugin, () -> {

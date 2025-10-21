@@ -21,14 +21,14 @@ import com.trailblazer.api.PathNameSanitizer;
 
 public class PathDataManager {
 
-    private final File dataFolder;
+    private final File basePathsFolder;
     private final Gson gson;
     private final AtomicInteger nextServerPathLetter = new AtomicInteger(0);
     public static final int MAX_POINTS_PER_PATH = 5000;
 
     public PathDataManager(TrailblazerPlugin plugin) {
-        this.dataFolder = new File(plugin.getDataFolder(), "paths");
-        if (!this.dataFolder.exists() && !this.dataFolder.mkdirs()) {
+        this.basePathsFolder = new File(plugin.getDataFolder(), "paths");
+        if (!this.basePathsFolder.exists() && !this.basePathsFolder.mkdirs()) {
             TrailblazerPlugin.getPluginLogger().severe("Could not create data folder!");
         }
         this.gson = new GsonBuilder().setPrettyPrinting().create();
@@ -37,11 +37,12 @@ public class PathDataManager {
     // Per-path locks so concurrent operations on different paths do not contend.
     private final ConcurrentHashMap<UUID, ReentrantLock> pathLocks = new ConcurrentHashMap<>();
 
-    public void savePath(PathData path) {
+    public void savePath(UUID worldUid, PathData path) {
         if (path == null || path.getPathId() == null) {
             throw new IllegalArgumentException("Path and pathId must not be null");
         }
-        File pathFile = new File(dataFolder, path.getPathId().toString() + ".json");
+        File worldFolder = resolveWorldFolder(worldUid);
+        File pathFile = new File(worldFolder, path.getPathId().toString() + ".json");
         ReentrantLock lock = acquireLock(path.getPathId());
         try {
             try (FileWriter writer = new FileWriter(pathFile)) {
@@ -61,9 +62,10 @@ public class PathDataManager {
         return "Path-" + letter;
     }
 
-    public List<PathData> loadPaths(UUID playerUUID) {
+    public List<PathData> loadPaths(UUID worldUid, UUID playerUUID) {
         List<PathData> playerPaths = new ArrayList<>();
-        File[] pathFiles = dataFolder.listFiles((dir, name) -> name.endsWith(".json"));
+        File worldFolder = resolveWorldFolder(worldUid);
+        File[] pathFiles = worldFolder.listFiles((dir, name) -> name.endsWith(".json"));
         if (pathFiles == null) {
             return playerPaths;
         }
@@ -89,7 +91,7 @@ public class PathDataManager {
                     if (!sanitized.equals(original)) {
                         pathData.setPathName(sanitized);
                         // Persist corrected name asynchronously (reuse save logic)
-                        savePath(pathData);
+                        savePath(worldUid, pathData);
                     }
                     playerPaths.add(pathData);
                 }
@@ -103,11 +105,12 @@ public class PathDataManager {
         return playerPaths;
     }
 
-    public boolean deletePath(UUID playerUUID, UUID pathId) {
+    public boolean deletePath(UUID worldUid, UUID playerUUID, UUID pathId) {
         if (pathId == null) {
             return false;
         }
-        File pathFile = new File(dataFolder, pathId.toString() + ".json");
+        File worldFolder = resolveWorldFolder(worldUid);
+        File pathFile = new File(worldFolder, pathId.toString() + ".json");
         ReentrantLock lock = acquireLock(pathId);
         try {
             if (!pathFile.exists()) {
@@ -137,7 +140,7 @@ public class PathDataManager {
 
             boolean removed = pathData.getSharedWith().remove(playerUUID);
             if (removed) {
-                savePath(pathData);
+                savePath(worldUid, pathData);
             }
             return removed;
         } finally {
@@ -145,11 +148,11 @@ public class PathDataManager {
         }
     }
 
-    public SharedCopyResult ensureSharedCopy(PathData source, UUID targetUuid, String targetName) {
+    public SharedCopyResult ensureSharedCopy(PathData source, UUID targetUuid, String targetName, UUID targetWorldUid) {
         if (source == null || targetUuid == null || targetName == null || targetName.isBlank()) {
             throw new IllegalArgumentException("Source path, target UUID, and target name must be provided");
         }
-        List<PathData> existing = loadPaths(targetUuid);
+        List<PathData> existing = loadPaths(targetWorldUid, targetUuid);
         UUID originPathId = resolveOriginPathId(source);
         Optional<PathData> alreadyOwned = existing.stream()
                 .filter(p -> targetUuid.equals(p.getOwnerUUID()))
@@ -164,7 +167,7 @@ public class PathDataManager {
         PathData copy = new PathData(UUID.randomUUID(), newName, targetUuid, targetName,
                 System.currentTimeMillis(), source.getDimension(), copiedPoints, source.getColorArgb());
         copy.setOrigin(originPathId, resolveOriginOwner(source), resolveOriginOwnerName(source));
-        savePath(copy);
+        savePath(targetWorldUid, copy);
         return new SharedCopyResult(copy, true);
     }
 
@@ -224,13 +227,14 @@ public class PathDataManager {
         }
     }
 
-    public void renamePath(UUID playerUUID, UUID pathId, String newName) {
+    public void renamePath(UUID worldUid, UUID playerUUID, UUID pathId, String newName) {
         if (pathId == null) {
             TrailblazerPlugin.getPluginLogger().warning("Attempted to rename a path with null identifier");
             return;
         }
         String sanitized = com.trailblazer.api.PathNameSanitizer.sanitize(newName);
-        File pathFile = new File(dataFolder, pathId.toString() + ".json");
+        File worldFolder = resolveWorldFolder(worldUid);
+        File pathFile = new File(worldFolder, pathId.toString() + ".json");
         if (!pathFile.exists()) {
             TrailblazerPlugin.getPluginLogger().warning("Attempted to rename a path that does not exist: " + pathId);
             return;
@@ -241,7 +245,7 @@ public class PathDataManager {
             PathData pathData = gson.fromJson(reader, PathData.class);
             if (pathData != null && pathData.getOwnerUUID().equals(playerUUID)) {
                 pathData.setPathName(sanitized);
-                savePath(pathData);
+                savePath(worldUid, pathData);
             }
         } catch (IOException e) {
             TrailblazerPlugin.getPluginLogger().severe("Failed to rename path: " + pathId);
@@ -251,8 +255,8 @@ public class PathDataManager {
         }
     }
 
-    public List<PathData> updateMetadata(UUID playerUUID, UUID pathId, String newName, int colorArgb) {
-        List<PathData> paths = loadPaths(playerUUID);
+    public List<PathData> updateMetadata(UUID worldUid, UUID playerUUID, UUID pathId, String newName, int colorArgb) {
+        List<PathData> paths = loadPaths(worldUid, playerUUID);
         boolean updated = false;
         for (PathData path : paths) {
             if (!path.getPathId().equals(pathId)) {
@@ -265,7 +269,7 @@ public class PathDataManager {
                 if (colorArgb != 0) {
                     path.setColorArgb(colorArgb);
                 }
-                savePath(path);
+                savePath(worldUid, path);
                 updated = true;
             }
             break;
@@ -302,5 +306,17 @@ public class PathDataManager {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    private File resolveWorldFolder(UUID worldUid) {
+        if (worldUid == null) {
+            throw new IllegalArgumentException("worldUid must not be null for per-world path storage");
+        }
+        String key = worldUid.toString();
+        File worldFolder = new File(basePathsFolder, key);
+        if (!worldFolder.exists() && !worldFolder.mkdirs()) {
+            TrailblazerPlugin.getPluginLogger().severe("Could not create world paths folder: " + worldFolder.getAbsolutePath());
+        }
+        return worldFolder;
     }
 }
