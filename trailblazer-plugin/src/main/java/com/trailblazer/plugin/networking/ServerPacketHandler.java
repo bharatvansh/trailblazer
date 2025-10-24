@@ -466,6 +466,9 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                         if (targetPlayer != null && targetPlayer.isOnline()) {
                             if (targetIsModded) {
                                 sendSharePath(targetPlayer, sharedCopy);
+                                // Inform modded recipient how to find it in their UI
+                                targetPlayer.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                                targetPlayer.sendMessage(Component.text("Open the Trailblazer UI to view/manage it (Shared tab).", NamedTextColor.GRAY));
                             } else {
                                 plugin.getPathRendererManager().startRendering(targetPlayer, sharedCopy);
                                 targetPlayer.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
@@ -577,6 +580,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                     if (targetIsModded) {
                         // Deliver to modded clients via payload
                         sendSharePath(targetOnline, sharedCopy);
+                        targetOnline.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                        targetOnline.sendMessage(Component.text("Open the Trailblazer UI to view/manage it (Shared tab).", NamedTextColor.GRAY));
                         moddedDelivered++;
                     } else {
                         // Fallback: start server-side particle rendering and notify

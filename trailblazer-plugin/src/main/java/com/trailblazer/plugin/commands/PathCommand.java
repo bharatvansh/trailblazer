@@ -180,7 +180,12 @@ public class PathCommand implements CommandExecutor {
         }
         var pr = CommandUtils.parseQuoted(args, 1, true);
         String pathName = pr.value;
-        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()), pathName);
+        String dimId = currentDimensionId(player.getWorld());
+        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(
+            pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
+                .filter(p -> dimId.equals(p.getDimension()))
+                .collect(java.util.stream.Collectors.toList()),
+            pathName);
 
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
@@ -209,7 +214,10 @@ public class PathCommand implements CommandExecutor {
         String pathName = pr.value;
         var pr2 = CommandUtils.parseQuoted(args, pr.nextIndex, true);
         String colorArg = pr2.value;
-        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
+        String dimId2 = currentDimensionId(player.getWorld());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
+            .filter(p -> dimId2.equals(p.getDimension()))
+            .collect(java.util.stream.Collectors.toList());
     Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, pathName);
         if (pathOpt.isEmpty()) {
             player.sendMessage(Component.text("Path '" + pathName + "' not found.", NamedTextColor.RED));
@@ -240,8 +248,11 @@ public class PathCommand implements CommandExecutor {
         }
         var pr = CommandUtils.parseQuoted(args, 1, true);
         String pathName = pr.value;
-        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
-    Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, pathName);
+        String dimId3 = currentDimensionId(player.getWorld());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
+            .filter(p -> dimId3.equals(p.getDimension()))
+            .collect(java.util.stream.Collectors.toList());
+        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(paths, pathName);
 
         if (pathOpt.isPresent()) {
             plugin.getPathRendererManager().startRendering(player, pathOpt.get());
@@ -271,7 +282,12 @@ public class PathCommand implements CommandExecutor {
         }
         var pr = CommandUtils.parseQuoted(args, 1, true);
         String pathName = pr.value;
-        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()), pathName);
+        String dimId4 = currentDimensionId(player.getWorld());
+        Optional<PathData> pathOpt = com.trailblazer.api.PathNameMatcher.findByName(
+            pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
+                .filter(p -> dimId4.equals(p.getDimension()))
+                .collect(java.util.stream.Collectors.toList()),
+            pathName);
 
         if (pathOpt.isPresent()) {
             PathData path = pathOpt.get();
@@ -295,7 +311,10 @@ public class PathCommand implements CommandExecutor {
             return;
         }
 
-        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
+        String dimId5 = currentDimensionId(player.getWorld());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
+            .filter(p -> dimId5.equals(p.getDimension()))
+            .collect(java.util.stream.Collectors.toList());
         if (paths.isEmpty()) {
             player.sendMessage(Component.text("You have no saved paths on this server.", NamedTextColor.GRAY));
             return;
@@ -344,7 +363,10 @@ public class PathCommand implements CommandExecutor {
         var pr2 = CommandUtils.parseQuoted(args, pr.nextIndex, true);
         String rawNewName = pr2.value;
         String sanitizedNewName = com.trailblazer.api.PathNameSanitizer.sanitize(rawNewName);
-        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId());
+        String dimId6 = currentDimensionId(player.getWorld());
+        List<PathData> paths = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
+            .filter(p -> dimId6.equals(p.getDimension()))
+            .collect(java.util.stream.Collectors.toList());
 
         // Check if a path with the new name already exists to avoid duplicates.
         if (paths.stream().anyMatch(p -> p.getPathName().equalsIgnoreCase(sanitizedNewName))) {
@@ -436,8 +458,10 @@ public class PathCommand implements CommandExecutor {
             return;
         }
 
+        String dimId7 = currentDimensionId(player.getWorld());
         Optional<PathData> pathOpt = pathDataManager.loadPaths(player.getWorld().getUID(), player.getUniqueId()).stream()
-                .filter(p -> p.getPathName().equalsIgnoreCase(pathName))
+            .filter(p -> dimId7.equals(p.getDimension()))
+            .filter(p -> p.getPathName().equalsIgnoreCase(pathName))
                 .findFirst();
 
         if (pathOpt.isPresent()) {
@@ -520,5 +544,17 @@ public class PathCommand implements CommandExecutor {
         if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
             player.sendMessage(Component.text("Client mod detected: prefer client '/trailblazer record' toggle for local recording.", NamedTextColor.GRAY));
         }
+    }
+
+    // Maps the current Bukkit world environment to our canonical dimension identifiers used in PathData
+    private String currentDimensionId(org.bukkit.World world) {
+        if (world == null) return "minecraft:overworld";
+        org.bukkit.World.Environment env = world.getEnvironment();
+        return switch (env) {
+            case NORMAL -> "minecraft:overworld";
+            case NETHER -> "minecraft:the_nether";
+            case THE_END -> "minecraft:the_end";
+            default -> "minecraft:overworld";
+        };
     }
 }
