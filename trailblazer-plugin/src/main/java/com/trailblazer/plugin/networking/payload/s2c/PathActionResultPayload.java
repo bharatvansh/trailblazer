@@ -35,48 +35,71 @@ public class PathActionResultPayload {
     }
 
     public byte[] toBytes() {
+        // Encode to match the Fabric client codec exactly:
+        // - Strings are prefixed with VarInt length (NOT fixed 4-byte int)
+        // - Presence flags are single bytes (boolean)
+        // - UUID is two longs
+        // - Sequence and optional ack are longs
+
         String json = updated == null ? "" : GSON.toJson(updated);
         byte[] actionB = action.getBytes(StandardCharsets.UTF_8);
         byte[] msgB = (message == null ? "" : message).getBytes(StandardCharsets.UTF_8);
         byte[] updatedB = json.getBytes(StandardCharsets.UTF_8);
-        
+
         int size = 0;
-        size += 4 + actionB.length; // action string
+        size += sizeOfVarInt(actionB.length) + actionB.length; // action string (VarInt length)
         size += 1; // path id presence flag
-        size += (pathId == null ? 0 : 16);
+        size += (pathId == null ? 0 : 16); // UUID (2 longs)
         size += 1; // success flag
-        size += 4 + msgB.length; // message string
+        size += sizeOfVarInt(msgB.length) + msgB.length; // message string (VarInt length)
         size += 1; // updated presence flag
-        size += (updated == null ? 0 : 4 + updatedB.length);
+        size += (updated == null ? 0 : sizeOfVarInt(updatedB.length) + updatedB.length);
         size += 8; // sequence number
         size += 1; // ack presence flag
         size += (acknowledgedSequence == null ? 0 : 8);
+
         ByteBuffer buf = ByteBuffer.allocate(size);
 
-        putVarString(buf, action);
-        buf.put((byte)(pathId != null ? 1 : 0));
+        putVarString(buf, actionB);
+        buf.put((byte) (pathId != null ? 1 : 0));
         if (pathId != null) {
             buf.putLong(pathId.getMostSignificantBits());
             buf.putLong(pathId.getLeastSignificantBits());
         }
-        buf.put((byte)(success ? 1 : 0));
-        putVarString(buf, message == null ? "" : message);
-        buf.put((byte)(updated != null ? 1 : 0));
+        buf.put((byte) (success ? 1 : 0));
+        putVarString(buf, msgB);
+        buf.put((byte) (updated != null ? 1 : 0));
         if (updated != null) {
-            putVarString(buf, json);
+            putVarString(buf, updatedB);
         }
         buf.putLong(sequenceNumber);
         buf.put((byte) (acknowledgedSequence != null ? 1 : 0));
         if (acknowledgedSequence != null) {
             buf.putLong(acknowledgedSequence);
         }
-        
+
         return buf.array();
     }
 
-    private static void putVarString(ByteBuffer buf, String s) {
-        byte[] data = s.getBytes(StandardCharsets.UTF_8);
-        buf.putInt(data.length);
+    private static void putVarString(ByteBuffer buf, byte[] data) {
+        putVarInt(buf, data.length);
         buf.put(data);
+    }
+
+    private static void putVarInt(ByteBuffer buf, int value) {
+        while ((value & -128) != 0) {
+            buf.put((byte) (value & 0x7F | 0x80));
+            value >>>= 7;
+        }
+        buf.put((byte) value);
+    }
+
+    private static int sizeOfVarInt(int value) {
+        int size = 1;
+        while ((value & -128) != 0) {
+            size++;
+            value >>>= 7;
+        }
+        return size;
     }
 }
