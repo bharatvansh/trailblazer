@@ -30,6 +30,7 @@ public class PathPersistenceManager {
 
     private Path worldDir;
     private final Map<UUID, Boolean> dirty = new ConcurrentHashMap<>();
+    private boolean defaultVisibleOnLoad = true;
 
     private static final String INDEX_FILE = "index.json";
 
@@ -49,6 +50,11 @@ public class PathPersistenceManager {
         } catch (IOException e) {
             LOGGER.error("Failed to create trailblazer paths directory", e);
         }
+    }
+
+    /** Control whether paths loaded from disk should be made visible by default. */
+    public void setDefaultVisibleOnLoad(boolean visible) {
+        this.defaultVisibleOnLoad = visible;
     }
 
     /** Called on world join after worldDir set */
@@ -114,7 +120,9 @@ public class PathPersistenceManager {
             } else {
                 pathManager.addMyPath(data);
             }
-            pathManager.setPathVisible(data.getPathId());
+            if (defaultVisibleOnLoad) {
+                pathManager.setPathVisible(data.getPathId());
+            }
         } catch (Exception e) {
             LOGGER.error("Failed to load path file {}", file, e);
         }

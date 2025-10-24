@@ -83,6 +83,29 @@ public class PathTabCompleter implements TabCompleter {
             return StringUtil.copyPartialMatches(args[2], names, new ArrayList<>());
         }
 
+        // spacing numeric suggestions (show current + a few common presets)
+        if (args.length == 2 && args[0].equalsIgnoreCase("spacing")) {
+            List<String> presets = new ArrayList<>();
+            try {
+                var plugin = com.trailblazer.plugin.TrailblazerPlugin.getInstance();
+                double current = plugin.getPlayerRenderSettingsManager().getMarkerSpacing(player);
+                presets.add(String.format(java.util.Locale.ROOT, "%.1f", current));
+            } catch (Exception ignored) {}
+            presets.addAll(List.of("1.0", "2.0", "3.0"));
+            return StringUtil.copyPartialMatches(args[1], presets, new ArrayList<>());
+        }
+
+        // record start optional name suggestion
+        if (args.length == 3 && args[0].equalsIgnoreCase("record") && args[1].equalsIgnoreCase("start")) {
+            List<String> suggestions = new ArrayList<>();
+            try {
+                String next = com.trailblazer.plugin.TrailblazerPlugin.getInstance().getPathDataManager().getNextServerPathName();
+                suggestions.add(next);
+            } catch (Exception ignored) {}
+            if (suggestions.isEmpty()) suggestions.add("Path-1");
+            return StringUtil.copyPartialMatches(args[2], suggestions, new ArrayList<>());
+        }
+
         // share player name suggestions after path + players list
         if (args.length == 3 && args[0].equalsIgnoreCase("share")) {
             String current = args[2];

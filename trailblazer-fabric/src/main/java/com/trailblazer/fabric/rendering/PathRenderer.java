@@ -58,12 +58,18 @@ public class PathRenderer {
 
     private void renderActivePaths(WorldRenderContext context) {
         ClientWorld world = (ClientWorld) context.world();
+        String currentDimension = world.getRegistryKey().getValue().toString();
         PathData livePath = clientPathManager.getLivePath();
         if (livePath != null) {
             renderPath(livePath, context, true);
         }
 
         for (PathData path : clientPathManager.getVisiblePaths()) {
+            String dim = path.getDimension();
+            // Only render paths that belong to the current dimension/world.
+            if (dim != null && !dim.isBlank() && !currentDimension.equals(dim)) {
+                continue;
+            }
             renderPath(path, context, false);
         }
     }

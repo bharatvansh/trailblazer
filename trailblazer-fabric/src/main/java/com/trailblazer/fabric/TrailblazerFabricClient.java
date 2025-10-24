@@ -91,6 +91,8 @@ public class TrailblazerFabricClient implements ClientModInitializer {
                     // Use the authoritative save path from the integrated server to avoid folder/display name mismatches
                     java.nio.file.Path worldPath = client.getServer().getSavePath(WorldSavePath.ROOT);
                     persistence.setWorldDirectory(worldPath);
+                    // Singleplayer: local paths are part of the same world; keep visible on load
+                    persistence.setDefaultVisibleOnLoad(true);
                     persistence.loadAll();
                 } else {
                     String serverKey = handler.getConnection().getAddress().toString().replaceAll("[^a-zA-Z0-9-_]", "_");
@@ -98,6 +100,8 @@ public class TrailblazerFabricClient implements ClientModInitializer {
                             .resolve("trailblazer_client_servers")
                             .resolve(serverKey);
                     persistence.setWorldDirectory(dir);
+                    // Multiplayer: avoid auto-showing local/imported paths from previous sessions/other worlds
+                    persistence.setDefaultVisibleOnLoad(false);
                     persistence.loadAll();
                 }
             });

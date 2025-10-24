@@ -19,6 +19,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.jetbrains.annotations.NotNull;
 
@@ -208,6 +209,34 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         UUID playerId = player.getUniqueId();
         moddedPlayers.remove(playerId);
         reliableStates.remove(playerId);
+    }
+
+    @EventHandler
+    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        if (player == null || !player.isOnline() || !isModdedPlayer(player)) {
+            return;
+        }
+        // Immediately hide any client-rendered paths to avoid cross-world visuals lingering
+        sendHideAllPaths(player);
+
+        // Load and sync paths scoped to the new world's UUID
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            UUID worldUid = player.getWorld().getUID();
+            List<PathData> allPaths = dataManager.loadPaths(worldUid, player.getUniqueId());
+            if (!allPaths.isEmpty()) {
+                // Duplicate lineage suppression: if player owns origin, drop shared copies referencing same lineage
+                Set<UUID> ownedOrigins = new HashSet<>();
+                for (PathData p : allPaths) {
+                    if (p.getOwnerUUID().equals(player.getUniqueId())) {
+                        UUID origin = p.getOriginPathId() != null ? p.getOriginPathId() : p.getPathId();
+                        ownedOrigins.add(origin);
+                    }
+                }
+                allPaths.removeIf(p -> !p.getOwnerUUID().equals(player.getUniqueId()) && ownedOrigins.contains(p.getPathId()));
+            }
+            plugin.getServer().getScheduler().runTask(plugin, () -> sendAllPathData(player, allPaths));
+        });
     }
 
     public boolean isModdedPlayer(Player player) {
@@ -519,23 +548,60 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 path.setOrigin(path.getPathId(), sender.getUniqueId(), sender.getName());
             }
 
-            int delivered = 0;
+            // For both modded and unmodded recipients: ensure a shared copy exists.
+            // If the recipient is modded and online, also deliver over the custom channel.
+            List<String> newlyShared = new ArrayList<>();
+            List<String> alreadyHad = new ArrayList<>();
+            int moddedDelivered = 0;
+
             for (UUID targetId : targets) {
-                Player target = plugin.getServer().getPlayer(targetId);
-                if (target != null && target.isOnline() && isModdedPlayer(target)) {
-                    SharePathPayload payload = new SharePathPayload(path);
-                    target.sendPluginMessage(plugin, SharePathPayload.CHANNEL_NAME, payload.toBytes());
-                    delivered++;
+                String targetName = resolvePlayerName(targetId);
+
+                // Determine world context: prefer target's current world if online, else sender's world
+                java.util.UUID targetWorldUid = sender.getWorld().getUID();
+                Player targetOnline = plugin.getServer().getPlayer(targetId);
+                if (targetOnline != null && targetOnline.isOnline()) {
+                    try { targetWorldUid = targetOnline.getWorld().getUID(); } catch (Exception ignored) {}
+                }
+
+                PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetId, targetName, targetWorldUid);
+                PathData sharedCopy = result.getPath();
+                if (!result.wasCreated()) {
+                    alreadyHad.add(targetName);
+                } else {
+                    newlyShared.add(targetName);
+                }
+
+                if (targetOnline != null && targetOnline.isOnline()) {
+                    boolean targetIsModded = isModdedPlayer(targetOnline);
+                    if (targetIsModded) {
+                        // Deliver to modded clients via payload
+                        sendSharePath(targetOnline, sharedCopy);
+                        moddedDelivered++;
+                    } else {
+                        // Fallback: start server-side particle rendering and notify
+                        plugin.getPathRendererManager().startRendering(targetOnline, sharedCopy);
+                        targetOnline.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                        targetOnline.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
+                    }
                 }
             }
 
-            if (delivered > 0) {
-                sendActionResult(sender, "share", path.getPathId(), true,
-                        "Shared path with " + delivered + " player(s).", null);
-            } else {
-                sendActionResult(sender, "share", path.getPathId(), false,
-                        "No target players were online with Trailblazer.", null);
+            boolean success = !newlyShared.isEmpty() || moddedDelivered > 0;
+            StringBuilder response = new StringBuilder();
+            if (!newlyShared.isEmpty()) {
+                response.append("Shared path with ").append(String.join(", ", newlyShared)).append('.');
             }
+            if (!alreadyHad.isEmpty()) {
+                if (response.length() > 0) response.append(' ');
+                response.append(String.join(", ", alreadyHad)).append(" already had their own copy.");
+            }
+            if (response.length() == 0) {
+                // Nobody received a new copy, but if some were online+modded we still delivered
+                response.append(moddedDelivered > 0 ? ("Shared path with " + moddedDelivered + " player(s).") : "Selected players already have this path.");
+            }
+
+            sendActionResult(sender, "share", path.getPathId(), success, response.toString(), null);
         } catch (Exception ex) {
             plugin.getLogger().warning("Failed to process share request payload from " + sender.getName() + ": " + ex.getMessage());
             sendActionResult(sender, "share", null, false, "An error occurred while sharing the path.", null);
