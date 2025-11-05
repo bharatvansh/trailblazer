@@ -95,22 +95,13 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 java.util.UUID worldUid = player.getWorld().getUID();
                 List<PathData> allPaths = dataManager.loadPaths(worldUid, player.getUniqueId());
-                if (!allPaths.isEmpty()) {
-                    java.util.Set<java.util.UUID> ownedOrigins = new java.util.HashSet<>();
-                    for (PathData p : allPaths) {
-                        if (p.getOwnerUUID().equals(player.getUniqueId())) {
-                            java.util.UUID origin = p.getOriginPathId() != null ? p.getOriginPathId() : p.getPathId();
-                            ownedOrigins.add(origin);
-                        }
-                    }
-                    allPaths.removeIf(p -> !p.getOwnerUUID().equals(player.getUniqueId()) && ownedOrigins.contains(p.getPathId()));
-                }
-                if (!allPaths.isEmpty()) {
-                    plugin.getServer().getScheduler().runTask(plugin, () -> {
-                        sendAllPathData(player, allPaths);
+                pruneDuplicateSharedCopies(allPaths, player.getUniqueId());
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    sendAllPathData(player, allPaths);
+                    if (!allPaths.isEmpty()) {
                         TrailblazerPlugin.getPluginLogger().info("Synced " + allPaths.size() + " existing path(s) to " + player.getName());
-                    });
-                }
+                    }
+                });
             });
             return;
         }
@@ -187,11 +178,12 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
      * @param paths The list of paths to send.
      */
     public void sendAllPathData(Player player, List<PathData> paths) {
-        if (!isModdedPlayer(player) || paths.isEmpty()) {
+        if (!isModdedPlayer(player)) {
             return;
         }
 
-        String json = gson.toJson(paths);
+        List<PathData> safePaths = paths != null ? paths : Collections.emptyList();
+        String json = gson.toJson(safePaths);
         PathDataSyncPayload payload = new PathDataSyncPayload(json);
         player.sendPluginMessage(plugin, PathDataSyncPayload.CHANNEL, payload.toBytes());
     }
@@ -224,17 +216,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             UUID worldUid = player.getWorld().getUID();
             List<PathData> allPaths = dataManager.loadPaths(worldUid, player.getUniqueId());
-            if (!allPaths.isEmpty()) {
-                // Duplicate lineage suppression: if player owns origin, drop shared copies referencing same lineage
-                Set<UUID> ownedOrigins = new HashSet<>();
-                for (PathData p : allPaths) {
-                    if (p.getOwnerUUID().equals(player.getUniqueId())) {
-                        UUID origin = p.getOriginPathId() != null ? p.getOriginPathId() : p.getPathId();
-                        ownedOrigins.add(origin);
-                    }
-                }
-                allPaths.removeIf(p -> !p.getOwnerUUID().equals(player.getUniqueId()) && ownedOrigins.contains(p.getPathId()));
-            }
+            pruneDuplicateSharedCopies(allPaths, player.getUniqueId());
             plugin.getServer().getScheduler().runTask(plugin, () -> sendAllPathData(player, allPaths));
         });
     }
@@ -521,6 +503,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             List<PathData> updatedPaths = dataManager.updateMetadata(worldUid, player.getUniqueId(), pathId, newName, color);
             if (updatedPaths != null) {
                 PathData updatedPath = updatedPaths.stream().filter(p -> p.getPathId().equals(pathId)).findFirst().orElse(null);
+                pruneDuplicateSharedCopies(updatedPaths, player.getUniqueId());
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     sendAllPathData(player, updatedPaths);
                     sendActionResult(player, "update_metadata", pathId, true, "Path updated successfully.", updatedPath);
@@ -700,5 +683,25 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             return offline.getName();
         }
         return "Player";
+    }
+
+    private static void pruneDuplicateSharedCopies(List<PathData> paths, UUID playerId) {
+        if (paths == null || paths.isEmpty() || playerId == null) {
+            return;
+        }
+
+        Set<UUID> ownedOrigins = new HashSet<>();
+        for (PathData path : paths) {
+            if (playerId.equals(path.getOwnerUUID())) {
+                ownedOrigins.add(resolveLineageId(path));
+            }
+        }
+
+        paths.removeIf(path -> !playerId.equals(path.getOwnerUUID()) && ownedOrigins.contains(resolveLineageId(path)));
+    }
+
+    private static UUID resolveLineageId(PathData path) {
+        UUID origin = path.getOriginPathId();
+        return origin != null ? origin : path.getPathId();
     }
 }
