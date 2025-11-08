@@ -1,20 +1,5 @@
 package com.trailblazer.fabric.commands;
 
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.suggestion.Suggestions;
-import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import com.trailblazer.api.PathData;
-import com.trailblazer.fabric.ClientPathManager;
-import com.trailblazer.fabric.ClientPathManager.PathOrigin;
-import com.trailblazer.fabric.RenderSettingsManager;
-import com.trailblazer.fabric.rendering.RenderMode;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -25,10 +10,25 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import com.trailblazer.api.PathData;
+import com.trailblazer.fabric.ClientPathManager;
+import com.trailblazer.fabric.ClientPathManager.PathOrigin;
+import com.trailblazer.fabric.RenderSettingsManager;
+import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
+import com.trailblazer.fabric.rendering.RenderMode;
+import com.trailblazer.fabric.sharing.PathShareSender;
+
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
-import com.trailblazer.fabric.networking.payload.c2s.UpdatePathMetadataPayload;
-import com.trailblazer.fabric.sharing.PathShareSender;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 public final class TrailblazerCommand {
 
@@ -109,30 +109,17 @@ public final class TrailblazerCommand {
 
     private static int sendHelp(FabricClientCommandSource source) {
         source.sendFeedback(Text.literal("--- Trailblazer Help ---").formatted(Formatting.GOLD));
-        // Primary flow: record -> list -> view -> hide -> info -> rename -> delete
-        source.sendFeedback(Text.literal("/trailblazer record").formatted(Formatting.YELLOW).append(Text.literal(" - Toggle recording (shortcut)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer record start").formatted(Formatting.YELLOW).append(Text.literal(" - Start a new recording." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer record stop").formatted(Formatting.YELLOW).append(Text.literal(" - Stop and keep current recording." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer record cancel").formatted(Formatting.YELLOW).append(Text.literal(" - Cancel and discard current recording." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer record status").formatted(Formatting.YELLOW).append(Text.literal(" - Show current recording status." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer list").formatted(Formatting.YELLOW).append(Text.literal(" - List your local and shared paths.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path using client renderer (quote names with spaces)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer hide [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Hide one path or all (no name)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Get the start and end coordinates of a path (quote names with spaces)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a local path (quote names with spaces)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Delete or hide a path locally (quote names with spaces)." ).formatted(Formatting.WHITE)));
-
-        // Repeated/auxiliary flow as requested: list -> info -> delete -> rename
-        source.sendFeedback(Text.literal("/trailblazer list").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) List your local and shared paths.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Show path start/end coordinates.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Delete or hide a path locally.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Rename a local path.").formatted(Formatting.WHITE)));
-
-        // Other useful commands
-        source.sendFeedback(Text.literal("/trailblazer color <name> <color>").formatted(Formatting.YELLOW).append(Text.literal(" - Set color for a path (local update; syncs to server if server-owned)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer share <name> <players>").formatted(Formatting.YELLOW).append(Text.literal(" - Send a share request for a path to other players (via server)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer rendermode <mode>").formatted(Formatting.YELLOW).append(Text.literal(" - Change client render mode. Modes: trail | markers | arrows" ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer help").formatted(Formatting.YELLOW).append(Text.literal(" - Show this help." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer record [start|stop|cancel|status]").formatted(Formatting.YELLOW).append(Text.literal(" - Recording commands (use 'record' alone to toggle)" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer list").formatted(Formatting.YELLOW).append(Text.literal(" - List your paths").formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer hide [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Hide path(s)" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Get path coordinates" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer rename <old> <new>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a path" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Delete a path" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer color <name> <color>").formatted(Formatting.YELLOW).append(Text.literal(" - Change path color" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer share <name> <players>").formatted(Formatting.YELLOW).append(Text.literal(" - Share path with players" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer rendermode <trail|markers|arrows>").formatted(Formatting.YELLOW).append(Text.literal(" - Change render mode" ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("Tip: Press M for UI, R to toggle recording, G to cycle render mode").formatted(Formatting.GRAY));
         return 1;
     }
 

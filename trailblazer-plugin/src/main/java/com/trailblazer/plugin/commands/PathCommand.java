@@ -530,20 +530,19 @@ public class PathCommand implements CommandExecutor {
 
     private void sendHelpMessage(Player player) {
         player.sendMessage(Component.text("--- Trailblazer Help ---", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("/trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.YELLOW).append(Component.text(" - Server-side path recording (available for all players)", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer list", NamedTextColor.YELLOW).append(Component.text(" - List saved paths (server fallback)", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.YELLOW).append(Component.text(" - Recording commands", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer list", NamedTextColor.YELLOW).append(Component.text(" - List saved paths", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer view <name>", NamedTextColor.YELLOW).append(Component.text(" - Show a path", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer hide", NamedTextColor.YELLOW).append(Component.text(" - Hide the current path", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer info <name>", NamedTextColor.YELLOW).append(Component.text(" - Get path start and end coordinates", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path you own", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer delete <name>", NamedTextColor.YELLOW).append(Component.text(" - Delete a path you own", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change stored color for a path", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer spacing <blocks>", NamedTextColor.YELLOW).append(Component.text(" - Set marker spacing for server fallback (e.g. 3.0)", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer share <path> <player1,player2,...>", NamedTextColor.YELLOW).append(Component.text(" - Share a path with other players", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer rendermode <mode>", NamedTextColor.YELLOW).append(Component.text(" - Change fallback render mode (for non-mod users)", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("/trailblazer help", NamedTextColor.YELLOW).append(Component.text(" - Show this help message", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer hide", NamedTextColor.YELLOW).append(Component.text(" - Hide current path", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer info <name>", NamedTextColor.YELLOW).append(Component.text(" - Get path coordinates", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer rename <old> <new>", NamedTextColor.YELLOW).append(Component.text(" - Rename a path", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer delete <name>", NamedTextColor.YELLOW).append(Component.text(" - Delete a path", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer color <name> <color>", NamedTextColor.YELLOW).append(Component.text(" - Change path color", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer spacing <blocks>", NamedTextColor.YELLOW).append(Component.text(" - Set marker spacing (e.g. 3.0)", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer share <path> <players>", NamedTextColor.YELLOW).append(Component.text(" - Share path with players", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer rendermode <trail|arrows>", NamedTextColor.YELLOW).append(Component.text(" - Change render mode", NamedTextColor.WHITE)));
         if (plugin.getServerPacketHandler().isModdedPlayer(player)) {
-            player.sendMessage(Component.text("Client mod detected: prefer client '/trailblazer record' toggle for local recording.", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Client mod detected: use client commands for better UI experience", NamedTextColor.GRAY));
         }
     }
 
