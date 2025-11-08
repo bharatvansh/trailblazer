@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PathRecordingManager {
 
     private static final double MIN_DISTANCE_SQUARED = 2.0 * 2.0;
+    private static final double TRAIL_Y_OFFSET = 0.5; // Offset to raise trail above ground level to prevent it from being hidden inside blocks
 
     private final Map<UUID, List<Vector3d>> recordingSessions = new ConcurrentHashMap<>();
     private final ServerPacketHandler packetHandler;
@@ -89,7 +90,7 @@ public class PathRecordingManager {
         }
 
         List<Vector3d> points = recordingSessions.get(player.getUniqueId());
-        Vector3d newPoint = new Vector3d(newLocation.getX(), newLocation.getY(), newLocation.getZ());
+        Vector3d newPoint = new Vector3d(newLocation.getX(), newLocation.getY() + TRAIL_Y_OFFSET, newLocation.getZ());
 
         if (points.isEmpty()) {
             points.add(newPoint);

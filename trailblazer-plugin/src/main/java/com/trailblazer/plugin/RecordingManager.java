@@ -18,6 +18,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
  */
 public class RecordingManager {
     private static final double MIN_DIST_SQ = 0.04; // ~0.2 blocks movement threshold
+    private static final double TRAIL_Y_OFFSET = 0.5; // Offset to raise trail above ground level to prevent it from being hidden inside blocks
     private final Map<UUID, ActiveRecording> active = new HashMap<>();
     private final TrailblazerPlugin plugin;
     private final PathDataManager dataManager;
@@ -81,7 +82,7 @@ public class RecordingManager {
 
     private void appendPoint(Player player, ActiveRecording rec, boolean force) {
         Location loc = player.getLocation();
-        Vector3d current = new Vector3d(loc.getX(), loc.getY(), loc.getZ());
+        Vector3d current = new Vector3d(loc.getX(), loc.getY() + TRAIL_Y_OFFSET, loc.getZ());
         if (!force && !rec.points.isEmpty()) {
             Vector3d last = rec.points.get(rec.points.size() - 1);
             double dx = current.getX() - last.getX();

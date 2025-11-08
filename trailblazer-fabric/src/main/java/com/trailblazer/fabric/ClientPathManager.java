@@ -24,6 +24,8 @@ import net.minecraft.entity.player.PlayerEntity;
  * Manages client-side path storage and recording.
  */
 public class ClientPathManager {
+    private static final double TRAIL_Y_OFFSET = 0.5; // Offset to raise trail above ground level to prevent it from being hidden inside blocks
+    
     public enum PathOrigin {
         LOCAL,
         SERVER_OWNED,
@@ -335,7 +337,7 @@ public class ClientPathManager {
         if (!recording || localRecording == null) return;
         if (client == null || client.player == null) return;
         PlayerEntity player = client.player;
-        Vector3d current = new Vector3d(player.getX(), player.getY(), player.getZ());
+        Vector3d current = new Vector3d(player.getX(), player.getY() + TRAIL_Y_OFFSET, player.getZ());
         List<Vector3d> pts = localRecording.getPoints();
         if (pts.isEmpty()) {
             pts.add(current);
