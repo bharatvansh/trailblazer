@@ -464,12 +464,10 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                         PathData sharedCopy = result.getPath();
                         if (targetIsModded) {
                             sendSharePath(targetOnline, sharedCopy);
-                            // Inform modded recipient how to find it in their UI
-                            targetOnline.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
-                            targetOnline.sendMessage(Component.text("Open the Trailblazer UI to view/manage it (Shared tab).", NamedTextColor.GRAY));
+                            targetOnline.sendMessage(Component.text(sender.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
                         } else {
                             plugin.getPathRendererManager().startRendering(targetOnline, sharedCopy);
-                            targetOnline.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                            targetOnline.sendMessage(Component.text(sender.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
                             targetOnline.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
                         }
                         newlyShared.add(targetName);
@@ -575,21 +573,20 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 PathData sharedCopy = result.getPath();
                 if (!result.wasCreated()) {
                     alreadyHad.add(targetName);
-                } else {
-                    newlyShared.add(targetName);
+                    continue;
                 }
 
+                newlyShared.add(targetName);
                 boolean targetIsModded = isModdedPlayer(targetOnline);
                 if (targetIsModded) {
                     // Deliver to modded clients via payload
                     sendSharePath(targetOnline, sharedCopy);
-                    targetOnline.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
-                    targetOnline.sendMessage(Component.text("Open the Trailblazer UI to view/manage it (Shared tab).", NamedTextColor.GRAY));
+                    targetOnline.sendMessage(Component.text(sender.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
                     moddedDelivered++;
                 } else {
                     // Fallback: start server-side particle rendering and notify
                     plugin.getPathRendererManager().startRendering(targetOnline, sharedCopy);
-                    targetOnline.sendMessage(Component.text(sender.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                    targetOnline.sendMessage(Component.text(sender.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
                     targetOnline.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
                 }
             }

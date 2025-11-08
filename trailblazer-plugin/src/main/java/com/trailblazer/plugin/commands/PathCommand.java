@@ -494,10 +494,10 @@ public class PathCommand implements CommandExecutor {
                     try {
                         if (targetIsModded) {
                             plugin.getServerPacketHandler().sendSharePath(targetPlayer, sharedCopy);
-                            targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you. It's available in your shared paths menu.", NamedTextColor.AQUA));
+                            targetPlayer.sendMessage(Component.text(player.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
                         } else {
                             plugin.getPathRendererManager().startRendering(targetPlayer, sharedCopy);
-                            targetPlayer.sendMessage(Component.text(player.getName() + " shared the path '" + sharedCopy.getPathName() + "' with you.", NamedTextColor.AQUA));
+                            targetPlayer.sendMessage(Component.text(player.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
                             targetPlayer.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
                         }
                         succeeded.add(targetPlayer.getName());
