@@ -114,12 +114,8 @@ public class PathPersistenceManager {
                 String originOwnerName = rec.originOwnerName != null ? rec.originOwnerName : data.getOwnerName();
                 data.setOrigin(originPath, originOwnerUuid, originOwnerName);
             }
-            boolean imported = rec.originPathId != null && rec.pathId != null && !rec.originPathId.equals(rec.pathId);
-            if (imported) {
-                pathManager.addImportedPath(data);
-            } else {
-                pathManager.addMyPath(data);
-            }
+            // All paths loaded from local storage are treated as LOCAL
+            pathManager.addMyPath(data);
             if (defaultVisibleOnLoad) {
                 pathManager.setPathVisible(data.getPathId());
             }

@@ -201,7 +201,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 MinecraftClient.getInstance().setScreen(new PlayerSelectionScreen(path, MinecraftClient.getInstance().currentScreen));
             }).build();
             boolean canSend = ClientPlayNetworking.canSend(SharePathRequestPayload.ID);
-            boolean originAllows = (origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_OWNED);
+            boolean originAllows = (origin == PathOrigin.LOCAL || origin == PathOrigin.SERVER_OWNED);
             boolean canShare = canSend && originAllows;
             this.shareButton.active = canShare;
             if (!canSend) {
@@ -215,7 +215,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     pathManager.onPathUpdated(updatedPath);
                 }, path, MinecraftClient.getInstance().currentScreen));
             }).build();
-            if (!(origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_OWNED)) {
+            if (!(origin == PathOrigin.LOCAL || origin == PathOrigin.SERVER_OWNED)) {
                 this.editButton.active = false;
                 this.editButton.setMessage(Text.of("View"));
             }
@@ -230,7 +230,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 }
                 awaitingDeleteConfirm = false;
                 switch (origin) {
-                    case LOCAL, IMPORTED -> {
+                    case LOCAL -> {
                         pathManager.deletePath(path.getPathId());
                         button.setMessage(Text.of("Delete"));
                     }
@@ -298,7 +298,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 displayName = textRenderer.trimToWidth(displayName, availableTextWidth - textRenderer.getWidth("...")) + "...";
             }
             context.drawText(textRenderer, displayName, baseX, textBaselineY, 0xFFFFFFFF, true);
-            if (!isMyPath || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_SHARED) {
+            if (!isMyPath || origin == PathOrigin.SERVER_SHARED) {
                 String ownerName = null;
                 String ownerText = null;
                 
@@ -308,16 +308,10 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     if (ownerName != null && !ownerName.isBlank()) {
                         ownerText = " (shared by " + ownerName + ")";
                     }
-                } else if (origin == PathOrigin.IMPORTED) {
-                    // For imported paths, show origin owner
-                    ownerName = path.getOriginOwnerName();
-                    if (ownerName != null && !ownerName.isBlank()) {
-                        ownerText = " (by " + ownerName + ")";
-                    }
                 } else {
                     // For other non-my paths, show owner
                     ownerName = path.getOwnerName();
-                if (ownerName != null && !ownerName.isBlank()) {
+                    if (ownerName != null && !ownerName.isBlank()) {
                         ownerText = " (by " + ownerName + ")";
                     }
                 }
@@ -392,7 +386,6 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         private Text getOriginTooltipText() {
             return switch (origin) {
                 case LOCAL -> Text.of("Stored on this client");
-                case IMPORTED -> Text.of("Imported share stored locally");
                 case SERVER_OWNED -> Text.of("Provided by server (your copy)");
                 case SERVER_SHARED -> Text.of("Live server share (read-only)");
             };
@@ -401,7 +394,6 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         private int originBadgeColor() {
             return switch (origin) {
                 case LOCAL -> 0xFF4CAF50;
-                case IMPORTED -> 0xFF9C27B0;
                 case SERVER_OWNED -> 0xFF2196F3;
                 case SERVER_SHARED -> 0xFF03A9F4;
             };

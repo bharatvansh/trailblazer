@@ -102,7 +102,7 @@ public class TrailblazerFabricClient implements ClientModInitializer {
                             .resolve("trailblazer_client_servers")
                             .resolve(serverKey);
                     persistence.setWorldDirectory(dir);
-                    // Multiplayer: avoid auto-showing local/imported paths from previous sessions/other worlds
+                    // Multiplayer: avoid auto-showing local paths from previous sessions/other worlds
                     persistence.setDefaultVisibleOnLoad(false);
                     persistence.loadAll();
                 }

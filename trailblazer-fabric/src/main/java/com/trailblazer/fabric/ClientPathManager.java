@@ -26,7 +26,6 @@ import net.minecraft.entity.player.PlayerEntity;
 public class ClientPathManager {
     public enum PathOrigin {
         LOCAL,
-        IMPORTED,
         SERVER_OWNED,
         SERVER_SHARED
     }
@@ -61,10 +60,6 @@ public class ClientPathManager {
         setPathVisible(path.getPathId()); // Make shared paths visible by default
     }
 
-    public void addImportedPath(PathData path) {
-        putPath(path, PathOrigin.IMPORTED);
-    }
-
     public void removePath(UUID pathId) {
         myPaths.remove(pathId);
         sharedPaths.remove(pathId);
@@ -95,7 +90,7 @@ public class ClientPathManager {
         myPaths.remove(pathId);
         visiblePaths.remove(pathId);
         pathOrigins.remove(pathId);
-        if ((origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED) && persistence != null) {
+        if (origin == PathOrigin.LOCAL && persistence != null) {
             persistence.deleteLocal(pathId);
         }
         recalculateNextPathNumber();
@@ -323,7 +318,7 @@ public class ClientPathManager {
         List<UUID> toRemove = new ArrayList<>();
         for (Map.Entry<UUID, PathOrigin> entry : pathOrigins.entrySet()) {
             PathOrigin origin = entry.getValue();
-            if (origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED) {
+            if (origin == PathOrigin.LOCAL) {
                 toRemove.add(entry.getKey());
             }
         }
@@ -384,16 +379,7 @@ public class ClientPathManager {
     }
 
     public Collection<PathData> getSharedPaths() {
-        List<PathData> imported = new ArrayList<>();
-        for (PathData path : myPaths.values()) {
-            if (getPathOrigin(path.getPathId()) == PathOrigin.IMPORTED) {
-                imported.add(path);
-            }
-        }
-        if (!sharedPaths.isEmpty()) {
-            imported.addAll(sharedPaths.values());
-        }
-        return imported;
+        return new ArrayList<>(sharedPaths.values());
     }
 
     public PathOrigin getPathOrigin(UUID pathId) {
@@ -407,7 +393,7 @@ public class ClientPathManager {
 
     public boolean isLocalPath(UUID pathId) {
         PathOrigin origin = getPathOrigin(pathId);
-        return origin == PathOrigin.LOCAL || origin == PathOrigin.IMPORTED;
+        return origin == PathOrigin.LOCAL;
     }
 
     public void setLocalPlayerUuid(UUID uuid) {

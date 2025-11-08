@@ -111,12 +111,6 @@ public class MainMenuScreen extends Screen {
             }
         } else {
             Set<java.util.UUID> seen = new HashSet<>();
-            for (PathData path : pathManager.getMyPaths()) {
-                PathOrigin origin = pathManager.getPathOrigin(path.getPathId());
-                if (origin == PathOrigin.IMPORTED && seen.add(path.getPathId())) {
-                    paths.add(path);
-                }
-            }
             for (PathData path : pathManager.getSharedPaths()) {
                 PathOrigin origin = pathManager.getPathOrigin(path.getPathId());
                 if (origin == PathOrigin.SERVER_SHARED && seen.add(path.getPathId())) {

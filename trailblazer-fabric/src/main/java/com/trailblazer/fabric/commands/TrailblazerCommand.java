@@ -120,14 +120,14 @@ public final class TrailblazerCommand {
         source.sendFeedback(Text.literal("/trailblazer view <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Show a path using client renderer (quote names with spaces)." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer hide [name]").formatted(Formatting.YELLOW).append(Text.literal(" - Hide one path or all (no name)." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Get the start and end coordinates of a path (quote names with spaces)." ).formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a local or imported path (quote names with spaces)." ).formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - Rename a local path (quote names with spaces)." ).formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - Delete or hide a path locally (quote names with spaces)." ).formatted(Formatting.WHITE)));
 
         // Repeated/auxiliary flow as requested: list -> info -> delete -> rename
         source.sendFeedback(Text.literal("/trailblazer list").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) List your local and shared paths.").formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer info <name>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Show path start/end coordinates.").formatted(Formatting.WHITE)));
         source.sendFeedback(Text.literal("/trailblazer delete <name>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Delete or hide a path locally.").formatted(Formatting.WHITE)));
-        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Rename a local or imported path.").formatted(Formatting.WHITE)));
+        source.sendFeedback(Text.literal("/trailblazer rename <oldName> <newName>").formatted(Formatting.YELLOW).append(Text.literal(" - (Repeat) Rename a local path.").formatted(Formatting.WHITE)));
 
         // Other useful commands
         source.sendFeedback(Text.literal("/trailblazer color <name> <color>").formatted(Formatting.YELLOW).append(Text.literal(" - Set color for a path (local update; syncs to server if server-owned)." ).formatted(Formatting.WHITE)));
@@ -445,7 +445,6 @@ public final class TrailblazerCommand {
 
     private static int listPaths(FabricClientCommandSource source) {
         List<PathData> localPaths = new ArrayList<>();
-        List<PathData> importedPaths = new ArrayList<>();
         List<PathData> serverShares = new ArrayList<>();
         Set<UUID> serverShareIds = new HashSet<>();
 
@@ -453,7 +452,6 @@ public final class TrailblazerCommand {
             PathOrigin origin = pathManager.getPathOrigin(path.getPathId());
             switch (origin) {
                 case LOCAL, SERVER_OWNED -> localPaths.add(path);
-                case IMPORTED -> importedPaths.add(path);
                 case SERVER_SHARED -> {
                     if (serverShareIds.add(path.getPathId())) {
                         serverShares.add(path);
@@ -477,10 +475,9 @@ public final class TrailblazerCommand {
         }
 
         source.sendFeedback(Text.literal("--- Shared With You ---").formatted(Formatting.GOLD));
-        if (importedPaths.isEmpty() && serverShares.isEmpty()) {
+        if (serverShares.isEmpty()) {
             source.sendFeedback(Text.literal("No shared paths loaded.").formatted(Formatting.GRAY));
         } else {
-            importedPaths.forEach(path -> source.sendFeedback(formatListEntry(path)));
             serverShares.forEach(path -> source.sendFeedback(formatListEntry(path)));
         }
         return 1;
@@ -490,10 +487,6 @@ public final class TrailblazerCommand {
         PathOrigin origin = pathManager.getPathOrigin(path.getPathId());
         String originLabel = switch (origin) {
             case LOCAL -> " (Local)";
-            case IMPORTED -> {
-                String from = path.getOriginOwnerName();
-                yield from != null && !from.isBlank() ? " (Imported from " + from + ")" : " (Imported)";
-            }
             case SERVER_OWNED -> " (Server copy)";
             case SERVER_SHARED -> " (Server share)";
         };
@@ -544,7 +537,7 @@ public final class TrailblazerCommand {
         PathOrigin origin = pathManager.getPathOrigin(pathId);
 
         switch (origin) {
-            case LOCAL, IMPORTED -> {
+            case LOCAL -> {
                 pathManager.deletePath(pathId);
                 source.sendFeedback(Text.literal("Deleted path locally: " + name).formatted(Formatting.GREEN));
             }
