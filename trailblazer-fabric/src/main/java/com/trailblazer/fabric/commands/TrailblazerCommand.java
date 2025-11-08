@@ -340,13 +340,28 @@ public final class TrailblazerCommand {
 
     private static int toggleRecording(FabricClientCommandSource source) {
         boolean isRecording = pathManager.isRecording();
+        boolean useServer = pathManager.shouldUseServerRecording();
+        
+        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("/trailblazer record (toggle) command executed: isRecording={}, useServerRecording={}", isRecording, useServer);
 
         if (isRecording) {
-            pathManager.stopRecordingLocal();
-            source.sendFeedback(Text.literal("Stopped local recording.").formatted(Formatting.GREEN));
+            if (useServer) {
+                pathManager.sendStopRecordingRequest(true);
+                source.sendFeedback(Text.literal("Stopping server-side recording...").formatted(Formatting.GREEN));
+            } else {
+                pathManager.stopRecordingLocal();
+                source.sendFeedback(Text.literal("Stopped local recording.").formatted(Formatting.GREEN));
+            }
         } else {
-            pathManager.startRecordingLocal();
-            source.sendFeedback(Text.literal("Started local recording.").formatted(Formatting.GREEN));
+            if (useServer) {
+                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Toggle command: Using SERVER recording");
+                pathManager.sendStartRecordingRequest(null);
+                source.sendFeedback(Text.literal("Started server-side recording.").formatted(Formatting.GREEN));
+            } else {
+                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Toggle command: Using LOCAL recording");
+                pathManager.startRecordingLocal();
+                source.sendFeedback(Text.literal("Started local recording.").formatted(Formatting.GREEN));
+            }
         }
         return 1;
     }
@@ -356,8 +371,19 @@ public final class TrailblazerCommand {
             source.sendError(Text.literal("Already recording. Use /trailblazer record stop or cancel."));
             return 0;
         }
-        pathManager.startRecordingLocal();
-        source.sendFeedback(Text.literal("Started recording.").formatted(Formatting.GREEN));
+        
+        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("/trailblazer record start command executed");
+        boolean useServer = pathManager.shouldUseServerRecording();
+        
+        if (useServer) {
+            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Command: Using SERVER recording");
+            pathManager.sendStartRecordingRequest(null);
+            source.sendFeedback(Text.literal("Started server-side recording.").formatted(Formatting.GREEN));
+        } else {
+            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Command: Using LOCAL recording");
+            pathManager.startRecordingLocal();
+            source.sendFeedback(Text.literal("Started local recording.").formatted(Formatting.GREEN));
+        }
         return 1;
     }
 
@@ -366,8 +392,14 @@ public final class TrailblazerCommand {
             source.sendError(Text.literal("No active recording."));
             return 0;
         }
-        pathManager.stopRecordingLocal();
-        source.sendFeedback(Text.literal("Stopped recording.").formatted(Formatting.GREEN));
+        
+        if (pathManager.shouldUseServerRecording()) {
+            pathManager.sendStopRecordingRequest(true);
+            source.sendFeedback(Text.literal("Stopping server-side recording...").formatted(Formatting.GREEN));
+        } else {
+            pathManager.stopRecordingLocal();
+            source.sendFeedback(Text.literal("Stopped local recording.").formatted(Formatting.GREEN));
+        }
         return 1;
     }
 
@@ -376,8 +408,14 @@ public final class TrailblazerCommand {
             source.sendError(Text.literal("No active recording."));
             return 0;
         }
-        pathManager.cancelRecordingLocal();
-        source.sendFeedback(Text.literal("Cancelled recording (discarded path)." ).formatted(Formatting.YELLOW));
+        
+        if (pathManager.shouldUseServerRecording()) {
+            pathManager.sendStopRecordingRequest(false);
+            source.sendFeedback(Text.literal("Cancelling server-side recording (discarded path).").formatted(Formatting.YELLOW));
+        } else {
+            pathManager.cancelRecordingLocal();
+            source.sendFeedback(Text.literal("Cancelled local recording (discarded path).").formatted(Formatting.YELLOW));
+        }
         return 1;
     }
 
@@ -385,9 +423,19 @@ public final class TrailblazerCommand {
         boolean isRecording = pathManager.isRecording();
         String label;
         if (isRecording) {
-            var path = pathManager.getLocalRecordingPath();
-            int points = path != null ? path.getPoints().size() : 0;
-            label = "Recording '" + (path != null ? path.getPathName() : "(unknown)") + "' (" + points + " points)";
+            // Try to get recording path (works for both local and server recordings)
+            var path = pathManager.getRecordingPath();
+            if (path == null) {
+                // Fallback: check if we have live path updates (server recording)
+                var livePath = pathManager.getLivePath();
+                int points = livePath != null ? livePath.getPoints().size() : 0;
+                label = "Recording (server) (" + points + " points)";
+            } else {
+                int points = path.getPoints().size();
+                String pathName = path.getPathName();
+                boolean isServerRecording = pathManager.shouldUseServerRecording();
+                label = "Recording '" + pathName + "' (" + points + " points)" + (isServerRecording ? " [Server]" : " [Local]");
+            }
         } else {
             label = "Not recording.";
         }

@@ -120,7 +120,9 @@ public class RecordingManager {
         final List<Vector3d> points = new ArrayList<>();
         ActiveRecording(UUID pathId, String name, World world, long startTime) {
             this.pathId = pathId; this.name = name; this.world = world; this.startTime = startTime; }
+        public UUID getPathId() { return pathId; }
         public String getName() { return name; }
+        public World getWorld() { return world; }
         public List<Vector3d> getPoints() { return points; }
     }
 }

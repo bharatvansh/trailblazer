@@ -18,6 +18,7 @@ import com.trailblazer.fabric.networking.payload.s2c.PathDeletedPayload;
 import com.trailblazer.fabric.networking.payload.s2c.SharedPathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.StopLivePathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.PathActionResultPayload;
+import com.trailblazer.fabric.networking.payload.s2c.StartRecordingPayload;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
@@ -76,6 +77,7 @@ public class ClientPacketHandler {
         ClientPlayNetworking.registerGlobalReceiver(StopLivePathPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 pathManager.stopLivePath();
+                pathManager.stopServerRecording();
                 try {
                     if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
                             com.trailblazer.fabric.networking.payload.c2s.HandshakePayload.ID)) {
@@ -85,6 +87,12 @@ public class ClientPacketHandler {
                 } catch (Exception e) {
                     TrailblazerFabricClient.LOGGER.error("Failed to request path resync after recording stop", e);
                 }
+            });
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(StartRecordingPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                pathManager.setRecordingFromServer(payload.pathId(), payload.pathName(), payload.dimension());
             });
         });
 

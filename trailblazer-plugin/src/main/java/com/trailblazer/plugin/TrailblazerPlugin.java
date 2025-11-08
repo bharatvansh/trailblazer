@@ -7,8 +7,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import com.trailblazer.plugin.commands.TrailblazerCommand;
 import com.trailblazer.plugin.commands.PathTabCompleter;
+import com.trailblazer.plugin.commands.TrailblazerCommand;
 import com.trailblazer.plugin.networking.ServerPacketHandler;
 import com.trailblazer.plugin.rendering.PlayerRenderSettingsManager;
 
@@ -28,6 +28,7 @@ public final class TrailblazerPlugin extends JavaPlugin implements Listener {
     public void onEnable() {
         instance = this;
         pluginLogger = this.getLogger();
+        pluginLogger.info("Trailblazer plugin loaded and fixed");
 
         initializeManagers();
         registerEventListeners();

@@ -64,11 +64,26 @@ public class MainMenuScreen extends Screen {
 
         recordButton = ButtonWidget.builder(getRecordingText(), button -> {
             boolean isRecording = pathManager.isRecording();
+            boolean useServer = pathManager.shouldUseServerRecording();
 
-            if (isRecording) {
-                pathManager.stopRecordingLocal();
+            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Record button pressed: isRecording={}, useServerRecording={}", isRecording, useServer);
+
+            if (useServer) {
+                // Use server-side recording when connected to plugin-enabled server
+                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Using SERVER recording");
+                if (isRecording) {
+                    pathManager.sendStopRecordingRequest(true);
+                } else {
+                    pathManager.sendStartRecordingRequest(null);
+                }
             } else {
-                pathManager.startRecordingLocal();
+                // Use local client-side recording for singleplayer or plugin-less servers
+                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("Using LOCAL recording");
+                if (isRecording) {
+                    pathManager.stopRecordingLocal();
+                } else {
+                    pathManager.startRecordingLocal();
+                }
             }
 
             recordButton.setMessage(getRecordingText());

@@ -12,6 +12,8 @@ import com.trailblazer.fabric.networking.payload.s2c.PathDeletedPayload;
 import com.trailblazer.fabric.networking.payload.s2c.SharedPathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.StopLivePathPayload;
 import com.trailblazer.fabric.networking.payload.s2c.PathActionResultPayload;
+import com.trailblazer.fabric.networking.payload.c2s.StartRecordingPayload;
+import com.trailblazer.fabric.networking.payload.c2s.StopRecordingPayload;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 
@@ -28,10 +30,13 @@ public class TrailblazerNetworking {
         PayloadTypeRegistry.playS2C().register(SharedPathPayload.ID, SharedPathPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(PathDeletedPayload.ID, PathDeletedPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(PathActionResultPayload.ID, PathActionResultPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(com.trailblazer.fabric.networking.payload.s2c.StartRecordingPayload.ID, com.trailblazer.fabric.networking.payload.s2c.StartRecordingPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(DeletePathPayload.ID, DeletePathPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(HandshakePayload.ID, HandshakePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(PathActionAckPayload.ID, PathActionAckPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SharePathRequestPayload.ID, SharePathRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(UpdatePathMetadataPayload.ID, UpdatePathMetadataPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(StartRecordingPayload.ID, StartRecordingPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(StopRecordingPayload.ID, StopRecordingPayload.CODEC);
     }
 }

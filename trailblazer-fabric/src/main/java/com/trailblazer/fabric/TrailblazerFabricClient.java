@@ -4,20 +4,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.trailblazer.fabric.commands.TrailblazerCommand;
+import com.trailblazer.fabric.config.TrailblazerClientConfig;
 import com.trailblazer.fabric.networking.ClientPacketHandler;
+import com.trailblazer.fabric.networking.ServerIntegrationManager;
 import com.trailblazer.fabric.networking.TrailblazerNetworking;
 import com.trailblazer.fabric.networking.payload.c2s.HandshakePayload;
-import com.trailblazer.fabric.networking.ServerIntegrationManager;
 import com.trailblazer.fabric.persistence.PathPersistenceManager;
-import com.trailblazer.fabric.config.TrailblazerClientConfig;
-import com.trailblazer.fabric.ui.RecordingOverlay;
 import com.trailblazer.fabric.rendering.PathRenderer;
+import com.trailblazer.fabric.ui.RecordingOverlay;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.minecraft.util.WorldSavePath;
 
 
@@ -37,6 +37,7 @@ public class TrailblazerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("Initializing Trailblazer client...");
+        LOGGER.info("Trailblazer loaded and fixed");
 
         this.clientPathManager = new ClientPathManager();
         this.renderSettingsManager = new RenderSettingsManager();
@@ -56,6 +57,7 @@ public class TrailblazerFabricClient implements ClientModInitializer {
             TrailblazerCommand.register(clientPathManager, renderSettingsManager);
         });
         TrailblazerNetworking.registerPayloadTypes();
+        LOGGER.info("Registered Trailblazer networking payload types (including recording payloads)");
         ClientPacketHandler.registerS2CPackets(clientPathManager);
         if (config.recordingOverlayEnabled) {
             net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(new RecordingOverlay(clientPathManager));

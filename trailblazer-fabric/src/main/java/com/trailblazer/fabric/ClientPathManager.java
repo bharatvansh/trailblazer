@@ -10,12 +10,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.player.PlayerEntity;
-
 import com.trailblazer.api.PathData;
 import com.trailblazer.api.Vector3d;
+import com.trailblazer.fabric.networking.payload.c2s.StartRecordingPayload;
+import com.trailblazer.fabric.networking.payload.c2s.StopRecordingPayload;
 import com.trailblazer.fabric.persistence.PathPersistenceManager;
+
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.player.PlayerEntity;
 
 /**
  * Manages client-side path storage and recording.
@@ -34,6 +37,9 @@ public class ClientPathManager {
     private PathData livePath = null;
     private PathData localRecording = null;
     private boolean recording = false;
+    // Server recording info (when recording is delegated to server)
+    private UUID serverRecordingPathId = null;
+    private String serverRecordingPathName = null;
     private Vector3d lastCapturedPoint = null;
     private PathPersistenceManager persistence;
     private int maxPointsPerPath = 5000;
@@ -163,6 +169,7 @@ public class ClientPathManager {
             TrailblazerFabricClient.LOGGER.warn("Cannot start recording: client not ready");
             return;
         }
+        TrailblazerFabricClient.LOGGER.info("Starting LOCAL recording");
         recording = true;
         UUID id = UUID.randomUUID();
         UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : (client.getSession() != null ? client.getSession().getUuidOrNull() : UUID.randomUUID());
@@ -199,6 +206,113 @@ public class ClientPathManager {
             lastCapturedPoint = null;
             recalculateNextPathNumber();
         }
+    }
+
+    // --- Server recording methods ---
+    
+    /**
+     * Checks if recording should be delegated to the server instead of being local.
+     * Returns true when connected to a multiplayer server with the Trailblazer plugin.
+     * Note: We don't check canSend() here because channels might not be immediately available
+     * after connection, but if server is plugin-enabled, it should support all our channels.
+     */
+    public boolean shouldUseServerRecording() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        
+        boolean hasBridge = ServerIntegrationBridge.SERVER_INTEGRATION != null;
+        boolean serverSupported = hasBridge && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported();
+        boolean isMultiplayer = client == null || client.getServer() == null;
+        
+        // Try to check if we can send, but don't require it - if server is plugin-enabled,
+        // it should support the channel even if canSend() returns false due to timing
+        boolean canSendPayload = ClientPlayNetworking.canSend(StartRecordingPayload.ID);
+        
+        // If server is plugin-enabled and we're in multiplayer, use server recording
+        // We trust that if handshake succeeded, server supports our channels
+        boolean result = hasBridge && serverSupported && isMultiplayer;
+        
+        TrailblazerFabricClient.LOGGER.info("shouldUseServerRecording check: bridge={}, serverSupported={}, multiplayer={}, canSendPayload={}, finalResult={}", 
+            hasBridge, serverSupported, isMultiplayer, canSendPayload, result);
+        
+        if (result && !canSendPayload) {
+            TrailblazerFabricClient.LOGGER.warn("Server is plugin-enabled but canSend() returned false - this may be a timing issue, attempting server recording anyway");
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Sends a request to the server to start recording a path.
+     * @param pathName Optional name for the path, or null for server auto-naming
+     */
+    public void sendStartRecordingRequest(String pathName) {
+        try {
+            // Always try to send - if channel isn't available, the send will handle it gracefully
+            // Fabric's networking will queue or handle errors appropriately
+            ClientPlayNetworking.send(new StartRecordingPayload(pathName));
+            TrailblazerFabricClient.LOGGER.info("Sent start recording request to server (pathName: {})", pathName != null ? pathName : "auto");
+        } catch (Exception e) {
+            TrailblazerFabricClient.LOGGER.error("Failed to send start recording request to server", e);
+            // Fall back to local recording if server request fails
+            TrailblazerFabricClient.LOGGER.warn("Falling back to local recording due to server communication failure");
+            startRecordingLocal();
+        }
+    }
+    
+    /**
+     * Sends a request to the server to stop recording the current path.
+     * @param save Whether to save the path (true) or discard it (false)
+     */
+    public void sendStopRecordingRequest(boolean save) {
+        try {
+            ClientPlayNetworking.send(new StopRecordingPayload(save));
+            TrailblazerFabricClient.LOGGER.info("Sent stop recording request to server (save: {})", save);
+        } catch (Exception e) {
+            TrailblazerFabricClient.LOGGER.error("Failed to send stop recording request to server", e);
+        }
+    }
+    
+    /**
+     * Called when the server notifies the client that recording has started.
+     * Updates the recording state to show UI feedback without actually recording locally.
+     * @param pathId The path ID assigned by the server
+     * @param pathName The name of the path
+     * @param dimension The dimension where recording started
+     */
+    public void setRecordingFromServer(UUID pathId, String pathName, String dimension) {
+        recording = true;
+        serverRecordingPathId = pathId;
+        serverRecordingPathName = pathName;
+        // Don't create localRecording - the server is handling the actual recording
+        // The live path updates will come from the server via LivePathUpdatePayload
+        TrailblazerFabricClient.LOGGER.info("Server recording started: {} in {}", pathName, dimension);
+    }
+    
+    /**
+     * Called when server recording stops. Clears the recording flag.
+     */
+    public void stopServerRecording() {
+        recording = false;
+        serverRecordingPathId = null;
+        serverRecordingPathName = null;
+        // Live path is cleared by StopLivePathPayload handler
+    }
+    
+    /**
+     * Gets the current recording path (works for both local and server recordings).
+     * @return PathData for local recording, or info about server recording, or null if not recording
+     */
+    public PathData getRecordingPath() {
+        if (localRecording != null) {
+            return localRecording;
+        }
+        if (serverRecordingPathName != null) {
+            // Server recording: return info with current points from livePath if available
+            List<Vector3d> points = livePath != null ? new ArrayList<>(livePath.getPoints()) : new ArrayList<>();
+            return new PathData(serverRecordingPathId != null ? serverRecordingPathId : UUID.randomUUID(), 
+                serverRecordingPathName, UUID.randomUUID(), "Server", System.currentTimeMillis(), "", points);
+        }
+        return null;
     }
 
     public void clearLocalPaths() {
@@ -317,6 +431,17 @@ public class ClientPathManager {
     }
 
     public void applyServerSync(Collection<PathData> serverPaths) {
+        // When receiving sync from a plugin-enabled server, clear all local paths
+        // This prevents path bleeding when the client had previously stored paths locally
+        // (e.g., from old plugin-less sessions or different worlds)
+        MinecraftClient client = MinecraftClient.getInstance();
+        boolean isMultiplayer = client == null || client.getServer() == null;
+        if (isMultiplayer && ServerIntegrationBridge.SERVER_INTEGRATION != null 
+            && ServerIntegrationBridge.SERVER_INTEGRATION.isServerSupported()) {
+            TrailblazerFabricClient.LOGGER.info("Clearing local paths for plugin-enabled server");
+            clearLocalPaths();
+        }
+        
         Set<UUID> preserveVisible = new HashSet<>();
         Set<UUID> previouslyKnown = new HashSet<>();
         for (UUID id : pathOrigins.keySet()) {

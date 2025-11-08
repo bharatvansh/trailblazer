@@ -29,6 +29,8 @@ import com.trailblazer.api.Vector3d;
 import com.trailblazer.plugin.PathDataManager;
 import com.trailblazer.plugin.TrailblazerPlugin;
 import com.trailblazer.plugin.networking.payload.c2s.HandshakePayload;
+import com.trailblazer.plugin.networking.payload.c2s.StartRecordingPayload;
+import com.trailblazer.plugin.networking.payload.c2s.StopRecordingPayload;
 import com.trailblazer.plugin.networking.payload.s2c.HideAllPathsPayload;
 import com.trailblazer.plugin.networking.payload.s2c.LivePathUpdatePayload;
 import com.trailblazer.plugin.networking.payload.s2c.PathDataSyncPayload;
@@ -68,6 +70,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, SharePathPayload.CHANNEL_NAME);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathDeletedPayload.CHANNEL_NAME);
         plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, PathActionResultPayload.CHANNEL);
+        plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, com.trailblazer.plugin.networking.payload.s2c.StartRecordingPayload.CHANNEL);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, HandshakePayload.CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_REQUEST_CHANNEL, this);
     plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SAVE_PATH_CHANNEL, this);
@@ -75,6 +78,8 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, UPDATE_METADATA_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, SHARE_PATH_WITH_PLAYERS_CHANNEL, this);
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, ACTION_ACK_CHANNEL, this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, StartRecordingPayload.CHANNEL, this);
+        plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, StopRecordingPayload.CHANNEL, this);
 
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::resendPendingActionResults, RESEND_INTERVAL_TICKS, RESEND_INTERVAL_TICKS);
     }
@@ -90,16 +95,20 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
         if (channel.equalsIgnoreCase(HandshakePayload.CHANNEL)) {
             moddedPlayers.add(player.getUniqueId());
-            plugin.getLogger().info("Received HandshakePayload from " + player.getName());
+            plugin.getLogger().info("Received HandshakePayload from " + player.getName() + " - modded client detected");
+            plugin.getLogger().info("Modded player " + player.getName() + " can now use server-side recording features");
 
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 java.util.UUID worldUid = player.getWorld().getUID();
+                plugin.getLogger().info("Loading paths for " + player.getName() + " in world " + worldUid);
                 List<PathData> allPaths = dataManager.loadPaths(worldUid, player.getUniqueId());
                 pruneDuplicateSharedCopies(allPaths, player.getUniqueId());
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     sendAllPathData(player, allPaths);
                     if (!allPaths.isEmpty()) {
                         TrailblazerPlugin.getPluginLogger().info("Synced " + allPaths.size() + " existing path(s) to " + player.getName());
+                    } else {
+                        TrailblazerPlugin.getPluginLogger().info("No existing paths for " + player.getName() + " in world " + worldUid);
                     }
                 });
             });
@@ -158,6 +167,16 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
         if (channel.equalsIgnoreCase(SAVE_PATH_CHANNEL)) {
             handleSaveRequest(player, message);
+            return;
+        }
+
+        if (channel.equalsIgnoreCase(StartRecordingPayload.CHANNEL)) {
+            handleStartRecording(player, message);
+            return;
+        }
+
+        if (channel.equalsIgnoreCase(StopRecordingPayload.CHANNEL)) {
+            handleStopRecording(player, message);
             return;
         }
     }
@@ -703,5 +722,120 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private static UUID resolveLineageId(PathData path) {
         UUID origin = path.getOriginPathId();
         return origin != null ? origin : path.getPathId();
+    }
+
+    /**
+     * Handles a client request to start recording a path on the server.
+     */
+    private void handleStartRecording(Player player, byte[] data) {
+        plugin.getLogger().info("Received start recording request from " + player.getName());
+        try {
+            StartRecordingPayload payload = StartRecordingPayload.fromBytes(data);
+            String pathName = payload.getPathName();
+            plugin.getLogger().info("Parsed start recording payload: pathName=" + (pathName != null ? pathName : "null"));
+            
+            boolean started = plugin.getRecordingManager().startRecording(player, pathName);
+            if (started) {
+                // Notify the client that recording has started for UI feedback
+                var activeRecording = plugin.getRecordingManager().getActive(player.getUniqueId());
+                plugin.getLogger().info("Recording started successfully for " + player.getName() + 
+                    " with name: " + (activeRecording != null ? activeRecording.getName() : "(unknown)"));
+                
+                if (activeRecording != null && isModdedPlayer(player)) {
+                    plugin.getLogger().info("Sending StartRecordingPayload to modded client " + player.getName());
+                    sendRecordingStarted(player, activeRecording);
+                } else {
+                    plugin.getLogger().info("Not sending StartRecordingPayload: activeRecording=" + (activeRecording != null) + ", isModded=" + isModdedPlayer(player));
+                }
+            } else {
+                plugin.getLogger().warning("Failed to start recording for " + player.getName() + " - may already be recording");
+                player.sendMessage(Component.text("Failed to start recording. You may already be recording.", NamedTextColor.RED));
+            }
+        } catch (Exception e) {
+            plugin.getLogger().severe("Failed to process start recording request from " + player.getName() + ": " + e.getMessage());
+            e.printStackTrace();
+            player.sendMessage(Component.text("An error occurred while starting recording.", NamedTextColor.RED));
+        }
+    }
+
+    /**
+     * Handles a client request to stop recording a path on the server.
+     */
+    private void handleStopRecording(Player player, byte[] data) {
+        try {
+            StopRecordingPayload payload = StopRecordingPayload.fromBytes(data);
+            boolean save = payload.shouldSave();
+            
+            PathData result = plugin.getRecordingManager().stopRecording(player, save);
+            if (result != null) {
+                // Send stop signal to client
+                if (isModdedPlayer(player)) {
+                    sendStopLivePathPayload(player);
+                }
+                
+                // Reload and sync all paths to include the new one
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                    UUID worldUid = player.getWorld().getUID();
+                    List<PathData> allPaths = dataManager.loadPaths(worldUid, player.getUniqueId());
+                    pruneDuplicateSharedCopies(allPaths, player.getUniqueId());
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        sendAllPathData(player, allPaths);
+                        player.sendMessage(Component.text("Path saved successfully!", NamedTextColor.GREEN));
+                    });
+                });
+                plugin.getLogger().info("Stopped and saved recording for " + player.getName());
+            } else {
+                if (save) {
+                    player.sendMessage(Component.text("No active recording to save or path was too short.", NamedTextColor.YELLOW));
+                } else {
+                    player.sendMessage(Component.text("Recording cancelled.", NamedTextColor.GRAY));
+                }
+                if (isModdedPlayer(player)) {
+                    sendStopLivePathPayload(player);
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to process stop recording request from " + player.getName() + ": " + e.getMessage());
+            player.sendMessage(Component.text("An error occurred while stopping recording.", NamedTextColor.RED));
+        }
+    }
+
+    /**
+     * Sends a StartRecordingPayload to the client to notify them that recording has started.
+     * This updates the client's UI state to show recording indicators.
+     */
+    public void sendRecordingStarted(Player player, com.trailblazer.plugin.RecordingManager.ActiveRecording recording) {
+        if (!isModdedPlayer(player) || recording == null) {
+            plugin.getLogger().warning("sendRecordingStarted called but player is not modded or recording is null");
+            return;
+        }
+        
+        UUID pathId = recording.getPathId(); // Use the actual pathId from the recording
+        // Get dimension key - try to use the proper dimension string
+        String dimension;
+        try {
+            dimension = recording.getWorld().key().asString();
+        } catch (Throwable t) {
+            dimension = recording.getWorld().getName();
+        }
+        
+        plugin.getLogger().info("Sending StartRecordingPayload: pathId=" + pathId + ", name=" + recording.getName() + ", dimension=" + dimension);
+        
+        com.trailblazer.plugin.networking.payload.s2c.StartRecordingPayload payload = 
+            new com.trailblazer.plugin.networking.payload.s2c.StartRecordingPayload(
+                pathId, recording.getName(), dimension);
+        player.sendPluginMessage(plugin, com.trailblazer.plugin.networking.payload.s2c.StartRecordingPayload.CHANNEL, payload.toBytes());
+        plugin.getLogger().info("StartRecordingPayload sent successfully to " + player.getName());
+    }
+
+    /**
+     * Sends a stop live path signal to the client.
+     */
+    private void sendStopLivePathPayload(Player player) {
+        if (!isModdedPlayer(player)) {
+            return;
+        }
+        // Send empty payload (0 bytes) to match client's CODEC expectation
+        player.sendPluginMessage(plugin, StopLivePathPayload.CHANNEL, new StopLivePathPayload().toBytes());
     }
 }

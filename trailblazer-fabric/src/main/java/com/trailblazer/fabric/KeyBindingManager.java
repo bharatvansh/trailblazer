@@ -47,13 +47,28 @@ public class KeyBindingManager {
             while (toggleRecordingKey.wasPressed()) {
                 if (client.player != null) {
                     boolean isRecording = clientPathManager.isRecording();
+                    boolean useServer = clientPathManager.shouldUseServerRecording();
+                    
+                    LOGGER.info("Recording key (R) pressed: isRecording={}, useServerRecording={}", isRecording, useServer);
 
                     if (isRecording) {
-                        clientPathManager.stopRecordingLocal();
-                        client.player.sendMessage(Text.literal("Stopped local recording.").formatted(Formatting.GREEN), true);
+                        if (useServer) {
+                            clientPathManager.sendStopRecordingRequest(true);
+                            client.player.sendMessage(Text.literal("Stopping server-side recording...").formatted(Formatting.GREEN), true);
+                        } else {
+                            clientPathManager.stopRecordingLocal();
+                            client.player.sendMessage(Text.literal("Stopped local recording.").formatted(Formatting.GREEN), true);
+                        }
                     } else {
-                        clientPathManager.startRecordingLocal();
-                        client.player.sendMessage(Text.literal("Started local recording.").formatted(Formatting.GREEN), true);
+                        if (useServer) {
+                            LOGGER.info("Keybinding: Using SERVER recording");
+                            clientPathManager.sendStartRecordingRequest(null);
+                            client.player.sendMessage(Text.literal("Started server-side recording.").formatted(Formatting.GREEN), true);
+                        } else {
+                            LOGGER.info("Keybinding: Using LOCAL recording");
+                            clientPathManager.startRecordingLocal();
+                            client.player.sendMessage(Text.literal("Started local recording.").formatted(Formatting.GREEN), true);
+                        }
                     }
                 }
             }

@@ -96,10 +96,6 @@ public class PathCommand implements CommandExecutor {
         String action = args[1].toLowerCase();
         switch (action) {
             case "start": {
-                if (isModded) {
-                    player.sendMessage(Component.text("You have the client mod. Use the client '/trailblazer record' toggle instead of server recording.", NamedTextColor.YELLOW));
-                    return;
-                }
                 String name = null;
                 if (args.length >= 3) {
                     // join rest as name to allow spaces? Keep simple: single token for now.
@@ -112,6 +108,13 @@ public class PathCommand implements CommandExecutor {
                 boolean started = recManager.startRecording(player, name);
                 if (started) {
                     player.sendMessage(Component.text("Started recording " + (name != null ? name : "(auto-named)") + ".", NamedTextColor.GREEN));
+                    // Notify modded clients to update UI
+                    if (isModded) {
+                        var activeRecording = recManager.getActive(player.getUniqueId());
+                        if (activeRecording != null) {
+                            plugin.getServerPacketHandler().sendRecordingStarted(player, activeRecording);
+                        }
+                    }
                 } else {
                     player.sendMessage(Component.text("Failed to start recording.", NamedTextColor.RED));
                 }
@@ -130,11 +133,7 @@ public class PathCommand implements CommandExecutor {
                 break; }
             case "stop": {
                 if (!recManager.isRecording(player.getUniqueId())) {
-                    if (isModded) {
-                        player.sendMessage(Component.text("No server recording in progress. To stop a client recording, use the client command toggle.", NamedTextColor.YELLOW));
-                    } else {
-                        player.sendMessage(Component.text("Not currently recording.", NamedTextColor.YELLOW));
-                    }
+                    player.sendMessage(Component.text("Not currently recording.", NamedTextColor.YELLOW));
                     return;
                 }
                 PathData saved = recManager.stopRecording(player, true);
@@ -144,24 +143,26 @@ public class PathCommand implements CommandExecutor {
                     if (!plugin.getServerPacketHandler().isModdedPlayer(player)) {
                         plugin.getPathRendererManager().startRendering(player, saved);
                     } else {
-                        // Tell client to stop live preview
+                        // Tell client to stop live preview and sync new paths
                         plugin.getServerPacketHandler().sendStopLivePath(player);
+                        // Paths are already synced in ServerPacketHandler.handleStopRecording
                     }
                 } else {
                     player.sendMessage(Component.text("Recording discarded (not enough points).", NamedTextColor.YELLOW));
+                    if (isModded) {
+                        plugin.getServerPacketHandler().sendStopLivePath(player);
+                    }
                 }
                 break; }
             case "cancel": {
                 if (!recManager.isRecording(player.getUniqueId())) {
-                    if (isModded) {
-                        player.sendMessage(Component.text("No server recording active to cancel. Use client toggle for local recordings.", NamedTextColor.YELLOW));
-                    } else {
-                        player.sendMessage(Component.text("Not currently recording.", NamedTextColor.YELLOW));
-                    }
+                    player.sendMessage(Component.text("Not currently recording.", NamedTextColor.YELLOW));
                     return;
                 }
                 recManager.cancelRecording(player);
-                plugin.getServerPacketHandler().sendStopLivePath(player);
+                if (isModded) {
+                    plugin.getServerPacketHandler().sendStopLivePath(player);
+                }
                 player.sendMessage(Component.text("Recording cancelled.", NamedTextColor.YELLOW));
                 break; }
             default:
@@ -529,7 +530,7 @@ public class PathCommand implements CommandExecutor {
 
     private void sendHelpMessage(Player player) {
         player.sendMessage(Component.text("--- Trailblazer Help ---", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("/trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.YELLOW).append(Component.text(" - Server-side path recording (unmodded clients only)", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("/trailblazer record <start|stop|cancel|status> [name]", NamedTextColor.YELLOW).append(Component.text(" - Server-side path recording (available for all players)", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer list", NamedTextColor.YELLOW).append(Component.text(" - List saved paths (server fallback)", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer view <name>", NamedTextColor.YELLOW).append(Component.text(" - Show a path", NamedTextColor.WHITE)));
         player.sendMessage(Component.text("/trailblazer hide", NamedTextColor.YELLOW).append(Component.text(" - Hide the current path", NamedTextColor.WHITE)));
