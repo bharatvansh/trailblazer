@@ -436,7 +436,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 .filter(p -> p.getPathId().equals(pathId) && p.getOwnerUUID().equals(sender.getUniqueId()))
                 .findFirst()
                 .ifPresentOrElse(path -> {
-                    boolean updated = false;
                     List<String> newlyShared = new ArrayList<>();
                     List<String> alreadyHad = new ArrayList<>();
 
@@ -456,12 +455,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
 
                         Player targetPlayer = plugin.getServer().getPlayer(targetPlayerId);
                         boolean targetIsModded = targetPlayer != null && targetPlayer.isOnline() && isModdedPlayer(targetPlayer);
-                        if (!targetIsModded) { 
-                            if (!path.getSharedWith().contains(targetPlayerId)) {
-                                path.getSharedWith().add(targetPlayerId);
-                                updated = true;
-                            }
-                        }
+                        // Note: sharedWith is no longer used - all recipients get owned copies via ensureSharedCopy()
 
                         PathData sharedCopy = result.getPath();
                         if (targetPlayer != null && targetPlayer.isOnline()) {
@@ -477,10 +471,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                             }
                         }
                         newlyShared.add(targetName);
-                    }
-
-                    if (updated) {
-                        dataManager.savePath(senderWorldUid, path);
                     }
 
                     boolean success = !newlyShared.isEmpty();

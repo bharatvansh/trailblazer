@@ -317,7 +317,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 } else {
                     // For other non-my paths, show owner
                     ownerName = path.getOwnerName();
-                    if (ownerName != null && !ownerName.isBlank()) {
+                if (ownerName != null && !ownerName.isBlank()) {
                         ownerText = " (by " + ownerName + ")";
                     }
                 }

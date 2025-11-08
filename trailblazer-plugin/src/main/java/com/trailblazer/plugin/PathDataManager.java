@@ -84,7 +84,9 @@ public class PathDataManager {
                     TrailblazerPlugin.getPluginLogger().warning("Skipping invalid path data file: " + pathFile.getName());
                     continue;
                 }
-                if (pathData.getOwnerUUID().equals(playerUUID) || pathData.getSharedWith().contains(playerUUID)) {
+                // Only check ownership - sharedWith is no longer used for access control
+                // All shared paths are now owned copies created via ensureSharedCopy()
+                if (pathData.getOwnerUUID().equals(playerUUID)) {
                     // Sanitize name post-deserialization to harden against tampered JSON
                     String original = pathData.getPathName();
                     String sanitized = PathNameSanitizer.sanitize(original);
@@ -130,6 +132,8 @@ public class PathDataManager {
                 return false;
             }
 
+            // Only allow deletion if player owns the path
+            // Shared paths are now owned copies, so recipients delete their own copy, not remove from sharedWith
             if (pathData.getOwnerUUID().equals(playerUUID)) {
                 if (!pathFile.delete()) {
                     TrailblazerPlugin.getPluginLogger().severe("Failed to delete path file: " + pathFile.getAbsolutePath());
@@ -138,11 +142,8 @@ public class PathDataManager {
                 return true;
             }
 
-            boolean removed = pathData.getSharedWith().remove(playerUUID);
-            if (removed) {
-                savePath(worldUid, pathData);
-            }
-            return removed;
+            // Player doesn't own this path, so they can't delete it
+            return false;
         } finally {
             releaseLock(pathId, lock);
         }
