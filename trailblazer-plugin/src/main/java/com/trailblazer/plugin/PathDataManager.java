@@ -36,6 +36,11 @@ public class PathDataManager {
 
     // Per-path locks so concurrent operations on different paths do not contend.
     private final ConcurrentHashMap<UUID, ReentrantLock> pathLocks = new ConcurrentHashMap<>();
+    
+    // Locks for sharing operations to prevent race conditions in duplicate detection.
+    // Key format: "targetUuid:originPathId" to ensure only one sharing operation
+    // for the same recipient + origin path combination can proceed at a time.
+    private final ConcurrentHashMap<String, ReentrantLock> sharingLocks = new ConcurrentHashMap<>();
 
     public void savePath(UUID worldUid, PathData path) {
         if (path == null || path.getPathId() == null) {
@@ -153,23 +158,62 @@ public class PathDataManager {
         if (source == null || targetUuid == null || targetName == null || targetName.isBlank()) {
             throw new IllegalArgumentException("Source path, target UUID, and target name must be provided");
         }
-        List<PathData> existing = loadPaths(targetWorldUid, targetUuid);
+        
+        // Create a unique lock key for this specific sharing operation.
+        // Same recipient + same origin path = same lock, preventing duplicate creation.
         UUID originPathId = resolveOriginPathId(source);
-        Optional<PathData> alreadyOwned = existing.stream()
-                .filter(p -> targetUuid.equals(p.getOwnerUUID()))
-                .filter(p -> resolveOriginPathId(p).equals(originPathId))
-                .findFirst();
-        if (alreadyOwned.isPresent()) {
-            return new SharedCopyResult(alreadyOwned.get(), false);
+        String lockKey = targetUuid.toString() + ":" + originPathId.toString();
+        
+        // Get or create a lock for this sharing operation.
+        // This ensures only one thread can check and create a copy for the same
+        // recipient + origin path combination at a time.
+        ReentrantLock sharingLock = sharingLocks.computeIfAbsent(lockKey, k -> new ReentrantLock());
+        
+        sharingLock.lock();
+        try {
+            // Now safely check for duplicates while holding the lock.
+            // This prevents race conditions where multiple threads might check
+            // simultaneously and both decide to create a copy.
+            List<PathData> existing = loadPaths(targetWorldUid, targetUuid);
+            Optional<PathData> alreadyOwned = existing.stream()
+                    .filter(p -> targetUuid.equals(p.getOwnerUUID()))
+                    .filter(p -> resolveOriginPathId(p).equals(originPathId))
+                    .findFirst();
+            
+            if (alreadyOwned.isPresent()) {
+                // Duplicate found! Return existing copy without creating a new one.
+                return new SharedCopyResult(alreadyOwned.get(), false);
+            }
+            
+            // No duplicate found - safe to create a new copy.
+            String newName = uniquePathName(source.getPathName(), existing);
+            List<Vector3d> copiedPoints = new ArrayList<>(source.getPoints());
+            PathData copy = new PathData(UUID.randomUUID(), newName, targetUuid, targetName,
+                    System.currentTimeMillis(), source.getDimension(), copiedPoints, source.getColorArgb());
+            copy.setOrigin(originPathId, resolveOriginOwner(source), resolveOriginOwnerName(source));
+            savePath(targetWorldUid, copy);
+            return new SharedCopyResult(copy, true);
+        } finally {
+            // Always release the lock, even if an exception occurs.
+            sharingLock.unlock();
+            
+            // Clean up the lock if it's no longer in use to prevent memory leaks.
+            // Use tryLock() to atomically check if the lock is truly free.
+            // If we can acquire it immediately, no other thread has it, so it's safe to remove.
+            if (sharingLock.tryLock()) {
+                try {
+                    // While holding the lock, check if any threads are queued.
+                    // If not, it's safe to remove since we have exclusive access.
+                    if (!sharingLock.hasQueuedThreads()) {
+                        sharingLocks.remove(lockKey, sharingLock);
+                    }
+                } finally {
+                    // Always release the lock we just acquired.
+                    sharingLock.unlock();
+                }
+            }
+            // If tryLock() failed, another thread acquired the lock, so do not remove.
         }
-
-        String newName = uniquePathName(source.getPathName(), existing);
-        List<Vector3d> copiedPoints = new ArrayList<>(source.getPoints());
-        PathData copy = new PathData(UUID.randomUUID(), newName, targetUuid, targetName,
-                System.currentTimeMillis(), source.getDimension(), copiedPoints, source.getColorArgb());
-        copy.setOrigin(originPathId, resolveOriginOwner(source), resolveOriginOwnerName(source));
-        savePath(targetWorldUid, copy);
-        return new SharedCopyResult(copy, true);
     }
 
     private UUID resolveOriginPathId(PathData path) {
@@ -294,6 +338,23 @@ public class PathDataManager {
     private void releaseLock(UUID pathId, ReentrantLock lock) {
         if (lock != null && lock.isHeldByCurrentThread()) {
             lock.unlock();
+            
+            // Clean up the lock if it's no longer in use to prevent memory leaks.
+            // Use tryLock() to atomically check if the lock is truly free.
+            // If we can acquire it immediately, no other thread has it, so it's safe to remove.
+            if (lock.tryLock()) {
+                try {
+                    // While holding the lock, check if any threads are queued.
+                    // If not, it's safe to remove since we have exclusive access.
+                    if (!lock.hasQueuedThreads()) {
+                        pathLocks.remove(pathId, lock);
+                    }
+                } finally {
+                    // Always release the lock we just acquired.
+                    lock.unlock();
+                }
+            }
+            // If tryLock() failed, another thread acquired the lock, so do not remove.
         }
     }
 

@@ -694,19 +694,51 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         return "Player";
     }
 
+    /**
+     * Removes duplicate paths with the same origin lineage from the provided list.
+     * <p>
+     * This method removes all but the first occurrence of any path (owned or shared copy)
+     * that shares the same originPathId, regardless of whether the player owns the original
+     * or a shared copy. This is broader than the previous implementation, which only removed
+     * shared copies if the player already owned the origin lineage.
+     * <p>
+     * Assumes all paths in the list are owned by the player (as filtered by loadPaths).
+     * For each origin, keeps the first path encountered and removes subsequent duplicates.
+     * This prevents multiple copies of the same path lineage from appearing in the player's path list.
+     * <p>
+     * If this change in behavior is not intentional, revert to the previous logic.
+     */
     private static void pruneDuplicateSharedCopies(List<PathData> paths, UUID playerId) {
         if (paths == null || paths.isEmpty() || playerId == null) {
             return;
         }
 
-        Set<UUID> ownedOrigins = new HashSet<>();
+        // Track which origins we've already seen
+        Set<UUID> seenOrigins = new HashSet<>();
+        List<PathData> pathsToRemove = new ArrayList<>();
+        
         for (PathData path : paths) {
-            if (playerId.equals(path.getOwnerUUID())) {
-                ownedOrigins.add(resolveLineageId(path));
+            // All paths should be owned by the player (loadPaths filters), but double-check
+            if (!playerId.equals(path.getOwnerUUID())) {
+                continue;
+            }
+            
+            UUID originId = resolveLineageId(path);
+            
+            // If we've already seen this origin, mark this path for removal (duplicate)
+            if (seenOrigins.contains(originId)) {
+                pathsToRemove.add(path);
+            } else {
+                // First time seeing this origin - keep it
+                seenOrigins.add(originId);
             }
         }
-
-        paths.removeIf(path -> !playerId.equals(path.getOwnerUUID()) && ownedOrigins.contains(resolveLineageId(path)));
+        
+        // Remove all duplicate paths from the list
+        if (!pathsToRemove.isEmpty()) {
+            paths.removeAll(pathsToRemove);
+            TrailblazerPlugin.getPluginLogger().info("Removed " + pathsToRemove.size() + " duplicate path(s) for player " + playerId);
+        }
     }
 
     private static UUID resolveLineageId(PathData path) {
