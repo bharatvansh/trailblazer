@@ -298,10 +298,31 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 displayName = textRenderer.trimToWidth(displayName, availableTextWidth - textRenderer.getWidth("...")) + "...";
             }
             context.drawText(textRenderer, displayName, baseX, textBaselineY, 0xFFFFFFFF, true);
-            if (!isMyPath || origin == PathOrigin.IMPORTED) {
-                String ownerName = origin == PathOrigin.IMPORTED ? path.getOriginOwnerName() : path.getOwnerName();
-                if (ownerName != null && !ownerName.isBlank()) {
-                    String ownerText = " (by " + ownerName + ")";
+            if (!isMyPath || origin == PathOrigin.IMPORTED || origin == PathOrigin.SERVER_SHARED) {
+                String ownerName = null;
+                String ownerText = null;
+                
+                if (origin == PathOrigin.SERVER_SHARED) {
+                    // For shared paths, show "shared by <originOwnerName>"
+                    ownerName = path.getOriginOwnerName();
+                    if (ownerName != null && !ownerName.isBlank()) {
+                        ownerText = " (shared by " + ownerName + ")";
+                    }
+                } else if (origin == PathOrigin.IMPORTED) {
+                    // For imported paths, show origin owner
+                    ownerName = path.getOriginOwnerName();
+                    if (ownerName != null && !ownerName.isBlank()) {
+                        ownerText = " (by " + ownerName + ")";
+                    }
+                } else {
+                    // For other non-my paths, show owner
+                    ownerName = path.getOwnerName();
+                    if (ownerName != null && !ownerName.isBlank()) {
+                        ownerText = " (by " + ownerName + ")";
+                    }
+                }
+                
+                if (ownerText != null) {
                     int ownerX = baseX + textRenderer.getWidth(displayName);
                     int remainingWidth = availableTextWidth - textRenderer.getWidth(displayName);
                     if (textRenderer.getWidth(ownerText) > remainingWidth) {

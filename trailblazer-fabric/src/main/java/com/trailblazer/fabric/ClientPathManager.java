@@ -480,22 +480,13 @@ public class ClientPathManager {
         if (path == null) {
             return;
         }
-        UUID newId = UUID.randomUUID();
-        UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : path.getOwnerUUID();
-        String ownerName = resolveLocalPlayerName(path.getOwnerName());
-        String displayName = uniquePathName(path.getPathName());
-        List<Vector3d> copiedPoints = new ArrayList<>(path.getPoints());
-        PathData imported = new PathData(newId, displayName, ownerUuid, ownerName,
-                System.currentTimeMillis(), path.getDimension(), copiedPoints, path.getColorArgb());
-        UUID originPathId = path.getOriginPathId() != null ? path.getOriginPathId() : path.getPathId();
-        UUID originOwner = path.getOriginOwnerUUID() != null ? path.getOriginOwnerUUID() : path.getOwnerUUID();
-        String originOwnerName = path.getOriginOwnerName() != null ? path.getOriginOwnerName() : path.getOwnerName();
-        imported.setOrigin(originPathId, originOwner, originOwnerName);
-
-        addImportedPath(imported);
-        setPathVisible(imported.getPathId());
+        // Use server's path ID and data directly - server is authoritative
+        // Server already sets recipient as owner and preserves origin info
+        // Mark as SERVER_SHARED to distinguish from player's own paths
+        putPath(path, PathOrigin.SERVER_SHARED);
+        setPathVisible(path.getPathId());
         if (persistence != null) {
-            persistence.markDirty(imported.getPathId());
+            persistence.markDirty(path.getPathId());
         }
         recalculateNextPathNumber();
     }
@@ -527,9 +518,19 @@ public class ClientPathManager {
     }
 
     private PathOrigin determineServerOrigin(PathData path) {
+        // Check if this is a shared path by examining origin info
+        // If originOwnerUUID exists and differs from ownerUUID, it's a shared path
+        UUID originOwnerUUID = path.getOriginOwnerUUID();
+        if (originOwnerUUID != null && !originOwnerUUID.equals(path.getOwnerUUID())) {
+            return PathOrigin.SERVER_SHARED;
+        }
+        
+        // If owner matches local player and no origin info (or origin matches owner), it's owned
         if (localPlayerUuid != null && localPlayerUuid.equals(path.getOwnerUUID())) {
             return PathOrigin.SERVER_OWNED;
         }
+        
+        // Fallback: if owner doesn't match local player, treat as shared
         return PathOrigin.SERVER_SHARED;
     }
 
