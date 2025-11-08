@@ -40,7 +40,6 @@ public final class TrailblazerCommand {
 
     public static void register(ClientPathManager manager, RenderSettingsManager settingsManager) {
         if (registered) {
-            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("TrailblazerCommand: register() called again - ignoring duplicate");
             return;
         }
         com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.info("TrailblazerCommand: registering client commands");

@@ -61,23 +61,19 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     }
                     c = c.getSuperclass();
                 }
-                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: background disabled via {}",
-                        fieldSet ? "field" : (disabledViaMethod ? "method" : "none"));
             } catch (Throwable t) {
-                com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: could not disable built-in background.");
+                // Background disabling failed silently - not critical
             }
-        } else {
-            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: background disabled via method.");
         }
     }
 
     @Override
     protected void drawMenuListBackground(DrawContext context) {
-        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: drawMenuListBackground invoked (suppressed)");
+        // Suppressed - using custom background rendering
     }
 
     protected void drawInWorldMenuListBackground(DrawContext context) {
-        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("PathListWidget: drawInWorldMenuListBackground invoked (suppressed)");
+        // Suppressed - using custom background rendering
     }
 
     @Override

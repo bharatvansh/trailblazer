@@ -799,8 +799,7 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 player.sendMessage(Component.text("Failed to start recording. You may already be recording.", NamedTextColor.RED));
             }
         } catch (Exception e) {
-            plugin.getLogger().severe("Failed to process start recording request from " + player.getName() + ": " + e.getMessage());
-            e.printStackTrace();
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to process start recording request from " + player.getName(), e);
             player.sendMessage(Component.text("An error occurred while starting recording.", NamedTextColor.RED));
         }
     }

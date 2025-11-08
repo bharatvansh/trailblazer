@@ -50,7 +50,7 @@ The system consists of:
 When the Player has fabric client mod installed and the server has the plugin installed.
 
 #### This Setup unlocks:
-- ✅ All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
+- ✅ All Basic Functionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
 - ✅ Sharing Paths with other players on the server.
 - ✅ Extensive Path management UI.
 - ✅ Commands for all functionalities.
@@ -60,11 +60,11 @@ When the Player has fabric client mod installed and the server has the plugin in
   - ✅ Live Path rendering when recording.
   - ✅ And more...
 
-### **Client Only:** The Seconds Best
+### **Client Only:** The Second Best
 When the Player has fabric client mod installed but the server does not have the plugin installed.
 
 #### This Setup unlocks:
-- ✅ All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
+- ✅ All Basic Functionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
 - ❌ Sharing Paths with other players on the server.
 - ✅ Extensive Path management UI.
 - ✅ Commands for all functionalities.
@@ -78,7 +78,7 @@ When the Player has fabric client mod installed but the server does not have the
 When the Player does not have fabric client mod installed but the server has the plugin installed.
 
 #### This Setup unlocks:
-- ✅ All Basic Funtionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
+- ✅ All Basic Functionalities like Recording, Saving, Loading, Viewing, Changing Color, Renaming, Deleting, Listing Paths.
 - ✅ Sharing Paths with other players on the server.
 - ❌ Extensive Path management UI.
 - ✅ Commands for all functionalities.
@@ -97,18 +97,18 @@ Trailblazer exposes a single root command `/trailblazer` with many subcommands. 
 - The Trailblazer UI provides an intuitive interface for managing paths, with options to create, edit, and delete paths easily.
 
 ### Client Keybinds - Works in Both Client Only and Client + Server Scenarios
-- **R Key**: Toggle local recording.
+- **R Key**: Toggle recording.
 - **G Key**: Cycle render mode.
 - **M Key**: Open the Trailblazer UI menu.
 
 ### Client Commands - Works for Both Client Only and Client + Server Scenarios
-These commands are available when the Fabric mod is installed. They use client-side rendering and local persistence, with server sync where applicable.
+These commands are available when the Fabric mod is installed. They use client-side rendering. **Important:** When connected to a server with the Trailblazer plugin installed, recording automatically uses server-side recording (paths are stored on the server and can be shared). In client-only mode or on servers without the plugin, recording uses local client-side storage.
 
 - `/trailblazer help` — Show client-side help.
-- `/trailblazer record` — Toggle local recording (shortcut).
-- `/trailblazer record start` — Start a new local recording.
-- `/trailblazer record stop` — Stop and save the current local recording.
-- `/trailblazer record cancel` — Cancel and discard the current local recording.
+- `/trailblazer record` — Toggle recording (shortcut).
+- `/trailblazer record start` — Start a new recording.
+- `/trailblazer record stop` — Stop and save the current recording.
+- `/trailblazer record cancel` — Cancel and discard the current recording.
 - `/trailblazer record status` — Show current recording status.
 - `/trailblazer list` — List your local and shared paths.
 - `/trailblazer view "<path name>"` — Show a path using client renderer.
@@ -121,11 +121,11 @@ These commands are available when the Fabric mod is installed. They use client-s
 - `/trailblazer rendermode <trail|markers|arrows>` — Change client render mode.
 - `/tbl` — Alias for `/trailblazer`.
 
-### Server-Side Commands - Works in Only Server-Side Scenario
-These commands are available when the server plugin is installed. They use server-side rendering and persistence.
+### Server-Side Commands - For Players Without Client Mod
+These commands are available when the server plugin is installed and are designed for players without the client mod. They use server-side rendering with particles and server-side persistence. **Note:** Players with the client mod installed will be redirected to use client commands for most operations (view, hide, info, delete, rename, rendermode, spacing) but can still use server commands for record, list, share, and color operations.
 
 - `/trailblazer help` — Show server-side help.
-- `/trailblazer record start [name]` — Start server-side recording.
+- `/trailblazer record start [name]` — Start server-side recording. Optional name parameter allows you to name the path during recording start.
 - `/trailblazer record stop` — Stop and save the current recording.
 - `/trailblazer record cancel` — Cancel and discard the current recording.
 - `/trailblazer record status` — Show current recording status.
@@ -144,7 +144,9 @@ These commands are available when the server plugin is installed. They use serve
 
 Notes:
 - Use `/trailblazer help` in-game for the full, contextual list and tab-completion suggestions.
-- Client commands sync with the server when managing server-owned paths.
+- **Recording behavior:** When the client mod is connected to a server with the plugin, all recording commands automatically use server-side recording. Paths are stored on the server and can be shared with other players. In singleplayer or on servers without the plugin, recording uses local client-side storage.
+- **Server command behavior with modded clients:** Players with the client mod will be redirected to use client commands for viewing, hiding, and managing paths (the server will show a message directing them to use client commands). However, server commands for recording, listing, sharing, and coloring still work for modded clients.
+- Client commands sync with the server when managing server-owned paths (paths created on the server).
 
 ## Building from Source
 

@@ -54,8 +54,7 @@ public class PathDataManager {
                 gson.toJson(path, writer);
             }
         } catch (IOException e) {
-            TrailblazerPlugin.getPluginLogger().severe("Failed to save path " + path.getPathName());
-            e.printStackTrace();
+            TrailblazerPlugin.getPluginLogger().log(java.util.logging.Level.SEVERE, "Failed to save path " + path.getPathName(), e);
         } finally {
             releaseLock(path.getPathId(), lock);
         }
@@ -103,8 +102,7 @@ public class PathDataManager {
                     playerPaths.add(pathData);
                 }
             } catch (IOException e) {
-                TrailblazerPlugin.getPluginLogger().severe("Failed to load a path file for " + playerUUID);
-                e.printStackTrace();
+                TrailblazerPlugin.getPluginLogger().log(java.util.logging.Level.SEVERE, "Failed to load a path file for " + playerUUID + ": " + pathFile.getName(), e);
             } finally {
                 releaseLock(pathId, lock);
             }
@@ -128,8 +126,7 @@ public class PathDataManager {
             try (FileReader reader = new FileReader(pathFile)) {
                 pathData = gson.fromJson(reader, PathData.class);
             } catch (IOException e) {
-                TrailblazerPlugin.getPluginLogger().severe("Failed to read path for deletion: " + pathId);
-                e.printStackTrace();
+                TrailblazerPlugin.getPluginLogger().log(java.util.logging.Level.SEVERE, "Failed to read path for deletion: " + pathId, e);
                 return false;
             }
 
@@ -293,8 +290,7 @@ public class PathDataManager {
                 savePath(worldUid, pathData);
             }
         } catch (IOException e) {
-            TrailblazerPlugin.getPluginLogger().severe("Failed to rename path: " + pathId);
-            e.printStackTrace();
+            TrailblazerPlugin.getPluginLogger().log(java.util.logging.Level.SEVERE, "Failed to rename path: " + pathId, e);
         } finally {
             releaseLock(pathId, lock);
         }

@@ -53,7 +53,6 @@ public class TrailblazerFabricClient implements ClientModInitializer {
         KeyBindingManager.initialize(renderSettingsManager, clientPathManager);
         TrailblazerCommand.register(clientPathManager, renderSettingsManager);
         ClientLifecycleEvents.CLIENT_STARTED.register(mc -> {
-            com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("TrailblazerFabricClient: CLIENT_STARTED - ensuring commands registered");
             TrailblazerCommand.register(clientPathManager, renderSettingsManager);
         });
         TrailblazerNetworking.registerPayloadTypes();

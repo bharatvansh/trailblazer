@@ -17,7 +17,7 @@ public abstract class EntryListWidgetMixin {
 
     @Inject(method = "renderWidget(Lnet/minecraft/client/gui/DrawContext;IIF)V", at = @At("HEAD"))
     private void trailblazer$debugRenderWidget(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        com.trailblazer.fabric.TrailblazerFabricClient.LOGGER.debug("Trailblazer mixin: EntryListWidget.renderWidget");
+        // Mixin injection point - no debug logging needed in production
     }
 
     @Redirect(
