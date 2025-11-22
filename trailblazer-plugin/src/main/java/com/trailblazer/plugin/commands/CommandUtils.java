@@ -37,7 +37,7 @@ public final class CommandUtils {
         if (first == null) return new ParseResult("", start + 1);
 
         // quoted with double or single quote
-        if ((first.startsWith("\"") && first.length() > 1) || (first.startsWith("'") && first.length() > 1)) {
+        if (first.startsWith("\"") || first.startsWith("'")) {
             char quote = first.charAt(0);
             StringBuilder sb = new StringBuilder();
             // strip leading quote

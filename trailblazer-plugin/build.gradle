@@ -17,6 +17,13 @@ dependencies {
 
     // We need the Netty library for byte buffer manipulation.
     implementation 'io.netty:netty-buffer:4.1.97.Final'
+
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 // This correctly processes the version number in plugin.yml
