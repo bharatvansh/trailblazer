@@ -275,7 +275,7 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             int baseX = bgLeft + 4;
 
             if (origin != null) {
-                int badgeColor = originBadgeColor();
+                int badgeColor = path.getColorArgb();
                 context.fill(baseX, textBaselineY - 1, baseX + 8, textBaselineY - 1 + 8, badgeColor);
                 if (mouseX >= baseX && mouseX <= baseX + 8 && mouseY >= textBaselineY - 1 && mouseY <= textBaselineY - 1 + 8) {
                     context.drawTooltip(MinecraftClient.getInstance().textRenderer, getOriginTooltipText(), mouseX, mouseY);
@@ -405,10 +405,20 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             int maxWidth = contentRightX - baseX;
             if (maxWidth <= 70) return;
 
-            String arrow = "→";
-            int arrowWidth = tr.getWidth(arrow);
+            // Calculate distance from player to start point
+            String distanceText = "";
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.player != null) {
+                double dx = client.player.getX() - startPoint.getX();
+                double dy = client.player.getY() - startPoint.getY();
+                double dz = client.player.getZ() - startPoint.getZ();
+                int distance = (int) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                distanceText = distance + " blocks away";
+            }
+
+            int distanceWidth = tr.getWidth(distanceText);
             int endWidth = tr.getWidth(endText);
-            int availableForStart = maxWidth - endWidth - arrowWidth - 16;
+            int availableForStart = maxWidth - endWidth - distanceWidth - 16;
             if (availableForStart < 40) return;
 
             if (tr.getWidth(startText) > availableForStart) {
@@ -419,17 +429,17 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             int startX = baseX;
             int endX = contentRightX - endWidth;
 
-            int arrowX = baseX + (maxWidth - arrowWidth) / 2;
-            int minArrowX = startX + startWidth + 4;
-            int maxArrowX = endX - arrowWidth - 4;
-            if (arrowX < minArrowX) {
-                arrowX = minArrowX;
-            } else if (arrowX > maxArrowX) {
-                arrowX = maxArrowX;
+            int distanceX = baseX + (maxWidth - distanceWidth) / 2;
+            int minDistanceX = startX + startWidth + 4;
+            int maxDistanceX = endX - distanceWidth - 4;
+            if (distanceX < minDistanceX) {
+                distanceX = minDistanceX;
+            } else if (distanceX > maxDistanceX) {
+                distanceX = maxDistanceX;
             }
 
             context.drawTextWithShadow(tr, startText, startX, yCoord, 0xFF808080);
-            context.drawTextWithShadow(tr, arrow, arrowX, yCoord, 0xFF606060);
+            context.drawTextWithShadow(tr, distanceText, distanceX, yCoord, 0xFF606060);
             context.drawTextWithShadow(tr, endText, endX, yCoord, 0xFF808080);
         }
     }

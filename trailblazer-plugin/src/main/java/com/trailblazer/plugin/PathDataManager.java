@@ -23,7 +23,7 @@ public class PathDataManager {
 
     private final File basePathsFolder;
     private final Gson gson;
-    private final AtomicInteger nextServerPathLetter = new AtomicInteger(0);
+    private final AtomicInteger nextServerPathNumber = new AtomicInteger(1);
     public static final int MAX_POINTS_PER_PATH = 5000;
 
     public PathDataManager(TrailblazerPlugin plugin) {
@@ -61,9 +61,8 @@ public class PathDataManager {
     }
 
     public String getNextServerPathName() {
-        int current = nextServerPathLetter.getAndIncrement();
-        String letter = String.valueOf((char) ('A' + current));
-        return "Path-" + letter;
+        int current = nextServerPathNumber.getAndIncrement();
+        return "Path-" + current;
     }
 
     public List<PathData> loadPaths(UUID worldUid, UUID playerUUID) {

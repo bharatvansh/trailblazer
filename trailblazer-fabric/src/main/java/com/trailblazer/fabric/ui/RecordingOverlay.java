@@ -17,8 +17,9 @@ public class RecordingOverlay implements HudRenderCallback {
         if (!pathManager.isRecording()) return;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
-        String label = "Recording Path: " + (pathManager.getLocalRecordingPath() != null ? pathManager.getLocalRecordingPath().getPathName() : "...") +
-                " (" + (pathManager.getLocalRecordingPath() != null ? pathManager.getLocalRecordingPath().getPoints().size() : 0) + ")";
+        var recordingPath = pathManager.getRecordingPath();
+        String label = "Recording Path: " + (recordingPath != null ? recordingPath.getPathName() : "...") +
+                " (" + (recordingPath != null ? recordingPath.getPoints().size() : 0) + ")";
         context.drawTextWithShadow(client.textRenderer, Text.literal(label), 8, 8 + client.textRenderer.fontHeight, 0xFFFF5555);
     }
 }
