@@ -104,9 +104,6 @@ public class PathRenderer {
         float g = ((color >> 8) & 0xFF) / 255f;
         float b = (color & 0xFF) / 255f;
         float a = 1.0f;
-        if (isLive) {
-            r = 1.0f; g = 0.5f; b = 0.0f;
-        }
 
         MinecraftClient client = MinecraftClient.getInstance();
         Vec3d camera = client.gameRenderer.getCamera().getPos();
@@ -188,11 +185,7 @@ public class PathRenderer {
             }
 
             if (lastPoint == null || distanceSinceLastMarker >= spacing) {
-                if (isLive) {
-                    world.addParticleClient(ParticleTypes.FLAME, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
-                } else {
-                    world.addParticleClient(trailEffect, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
-                }
+                world.addParticleClient(trailEffect, currentPoint.x, currentPoint.y, currentPoint.z, 0, 0, 0);
                 distanceSinceLastMarker = 0.0;
             }
             lastPoint = currentPoint;

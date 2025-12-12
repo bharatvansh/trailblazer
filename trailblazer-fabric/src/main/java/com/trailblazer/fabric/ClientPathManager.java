@@ -24,7 +24,7 @@ import net.minecraft.entity.player.PlayerEntity;
  * Manages client-side path storage and recording.
  */
 public class ClientPathManager {
-    private static final double TRAIL_Y_OFFSET = 0.5; // Offset to raise trail above ground level to prevent it from being hidden inside blocks
+    private static final double TRAIL_Y_OFFSET = 1.2; // Offset to raise trail above ground level to prevent it from being hidden inside blocks
     
     public enum PathOrigin {
         LOCAL,
@@ -45,12 +45,12 @@ public class ClientPathManager {
     private PathPersistenceManager persistence;
     private int maxPointsPerPath = 5000;
     private UUID localPlayerUuid;
-    private int nextPathNumber = 1;
+    private int nextPathIndex = 1;
 
     public void attachPersistence(PathPersistenceManager persistence, int maxPointsPerPath) {
         this.persistence = persistence;
         this.maxPointsPerPath = maxPointsPerPath;
-        recalculateNextPathNumber();
+        recalculateNextPathIndex();
     }
 
     public void addMyPath(PathData path) {
@@ -95,7 +95,7 @@ public class ClientPathManager {
         if (origin == PathOrigin.LOCAL && persistence != null) {
             persistence.deleteLocal(pathId);
         }
-        recalculateNextPathNumber();
+        recalculateNextPathIndex();
     }
 
     public void removeSharedPath(UUID pathId) {
@@ -172,12 +172,12 @@ public class ClientPathManager {
         UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : (client.getSession() != null ? client.getSession().getUuidOrNull() : UUID.randomUUID());
         String ownerName = resolveLocalPlayerName("Player");
         String dimension = client.player.getWorld().getRegistryKey().getValue().toString();
-        localRecording = new PathData(id, "Path-" + nextPathNumber, ownerUuid, ownerName, System.currentTimeMillis(), dimension, new ArrayList<>());
+        localRecording = new PathData(id, "Path-" + indexToLetters(nextPathIndex), ownerUuid, ownerName, System.currentTimeMillis(), dimension, new ArrayList<>());
         addMyPath(localRecording);
         setPathVisible(localRecording.getPathId());
         lastCapturedPoint = null;
         if (persistence != null) persistence.markDirty(localRecording.getPathId());
-        nextPathNumber++;
+        nextPathIndex++;
     }
 
     public void stopRecordingLocal() {
@@ -201,7 +201,7 @@ public class ClientPathManager {
             pathOrigins.remove(id);
             localRecording = null;
             lastCapturedPoint = null;
-            recalculateNextPathNumber();
+            recalculateNextPathIndex();
         }
     }
 
@@ -329,7 +329,7 @@ public class ClientPathManager {
             visiblePaths.remove(id);
             pathOrigins.remove(id);
         }
-        recalculateNextPathNumber();
+        recalculateNextPathIndex();
     }
 
     /** Called each client tick to append points when recording locally. */
@@ -461,7 +461,7 @@ public class ClientPathManager {
                 visiblePaths.add(id);
             }
         }
-        recalculateNextPathNumber();
+        recalculateNextPathIndex();
     }
 
     public void applyServerShare(PathData path) {
@@ -476,7 +476,7 @@ public class ClientPathManager {
         if (persistence != null) {
             persistence.markDirty(path.getPathId());
         }
-        recalculateNextPathNumber();
+        recalculateNextPathIndex();
     }
 
     public void loadDummyPath() {
@@ -523,26 +523,53 @@ public class ClientPathManager {
     }
 
     /**
-     * Recalculate the next numeric suffix to use for auto-named "Path-N" paths.
+     * Recalculate the next index to use for auto-named "Path-X" paths (using letters A, B, ... Z, AA, etc.).
      * This inspects currently-loaded local paths and sets the internal counter so
      * newly-created paths won't collide with existing ones.
      */
-    public void recalculateNextPathNumber() {
-        int maxNum = 0;
+    public void recalculateNextPathIndex() {
+        int maxIndex = 0;
         for (PathData path : myPaths.values()) {
             if (path.getPathName().startsWith("Path-")) {
-                try {
-                    String numStr = path.getPathName().substring(5);
-                    int num = Integer.parseInt(numStr);
-                    if (num > maxNum) {
-                        maxNum = num;
-                    }
-                } catch (NumberFormatException | IndexOutOfBoundsException e) {
-                    // Ignore paths with malformed names
+                String suffix = path.getPathName().substring(5);
+                int index = lettersToIndex(suffix);
+                if (index > maxIndex) {
+                    maxIndex = index;
                 }
             }
         }
-        nextPathNumber = maxNum + 1;
+        nextPathIndex = maxIndex + 1;
+    }
+
+    /**
+     * Convert a 1-based index to letter sequence (1=A, 2=B, ..., 26=Z, 27=AA, 28=AB, ...).
+     */
+    private static String indexToLetters(int index) {
+        StringBuilder sb = new StringBuilder();
+        while (index > 0) {
+            index--;
+            sb.insert(0, (char) ('A' + (index % 26)));
+            index /= 26;
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Convert a letter sequence to 1-based index (A=1, B=2, ..., Z=26, AA=27, AB=28, ...).
+     * Returns 0 if the string is empty or contains non-letter characters.
+     */
+    private static int lettersToIndex(String letters) {
+        if (letters == null || letters.isEmpty()) {
+            return 0;
+        }
+        int result = 0;
+        for (char c : letters.toCharArray()) {
+            if (c < 'A' || c > 'Z') {
+                return 0; // Invalid character, not a letter sequence
+            }
+            result = result * 26 + (c - 'A' + 1);
+        }
+        return result;
     }
 
     private String resolveLocalPlayerName(String fallback) {

@@ -96,7 +96,7 @@ public class PathPersistenceManager {
         } catch (IOException e) {
             LOGGER.error("Error scanning path directory", e);
         }
-        pathManager.recalculateNextPathNumber();
+        pathManager.recalculateNextPathIndex();
     }
 
     private void loadSingle(UUID pathId, Path file) {
