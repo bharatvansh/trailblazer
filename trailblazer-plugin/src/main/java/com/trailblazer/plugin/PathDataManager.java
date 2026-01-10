@@ -87,6 +87,15 @@ public class PathDataManager {
                     TrailblazerPlugin.getPluginLogger().warning("Skipping invalid path data file: " + pathFile.getName());
                     continue;
                 }
+
+                // Normalize loaded data to a safe, constructor-built instance to recover from missing fields
+                // in older/tampered JSON while keeping backwards compatibility.
+                PathData normalized = normalizeLoadedPath(pathData);
+                if (normalized != pathData) {
+                    pathData = normalized;
+                    savePath(worldUid, pathData);
+                }
+
                 // Only check ownership - sharedWith is no longer used for access control
                 // All shared paths are now owned copies created via ensureSharedCopy()
                 if (pathData.getOwnerUUID().equals(playerUUID)) {
@@ -107,6 +116,69 @@ public class PathDataManager {
             }
         }
         return playerPaths;
+    }
+
+    /**
+     * Gson can deserialize into this class without running the constructor, leaving finals/collections null
+     * if fields are missing in JSON. This method rebuilds a safe instance and fills sensible defaults.
+     */
+    private PathData normalizeLoadedPath(PathData loaded) {
+        boolean needsRepair = false;
+
+        String ownerName = loaded.getOwnerName();
+        if (ownerName == null || ownerName.isBlank()) {
+            ownerName = "Player";
+            needsRepair = true;
+        }
+
+        String dimension = loaded.getDimension();
+        if (dimension == null || dimension.isBlank()) {
+            // Best-effort fallback: world folder implies a world, but we don't have a World object here.
+            // Use overworld as a safe default to avoid NPEs.
+            dimension = "minecraft:overworld";
+            needsRepair = true;
+        }
+
+        List<Vector3d> points = loaded.getPoints();
+        if (points == null) {
+            points = new ArrayList<>();
+            needsRepair = true;
+        }
+
+        List<UUID> sharedWith = loaded.getSharedWith();
+        if (sharedWith == null) {
+            sharedWith = new ArrayList<>();
+            needsRepair = true;
+        }
+
+        UUID originPathId = loaded.getOriginPathId();
+        UUID originOwnerUuid = loaded.getOriginOwnerUUID();
+        String originOwnerName = loaded.getOriginOwnerName();
+        if (originPathId == null || originOwnerUuid == null || originOwnerName == null || originOwnerName.isBlank()) {
+            // Default lineage to "self" if missing.
+            originPathId = loaded.getPathId();
+            originOwnerUuid = loaded.getOwnerUUID();
+            originOwnerName = ownerName;
+            needsRepair = true;
+        }
+
+        if (!needsRepair) {
+            return loaded;
+        }
+
+        PathData repaired = new PathData(
+                loaded.getPathId(),
+                loaded.getPathName(),
+                loaded.getOwnerUUID(),
+                ownerName,
+                loaded.getCreationTimestamp(),
+                dimension,
+                new ArrayList<>(points),
+                loaded.getColorArgb(),
+                new ArrayList<>(sharedWith)
+        );
+        repaired.setOrigin(originPathId, originOwnerUuid, originOwnerName);
+        return repaired;
     }
 
     public boolean deletePath(UUID worldUid, UUID playerUUID, UUID pathId) {
@@ -231,7 +303,10 @@ public class PathDataManager {
     }
 
     private String uniquePathName(String proposed, List<PathData> existing) {
+        // Sanitize names at the trust boundary (paths may be client-sent or tampered on disk).
+        // PathData itself sanitizes, but doing it here ensures deterministic collision checks too.
         String base = (proposed == null || proposed.isBlank()) ? "Shared Path" : proposed.trim();
+        base = PathNameSanitizer.sanitize(base);
         String candidate = base;
         int index = 2;
         while (nameExists(existing, candidate)) {

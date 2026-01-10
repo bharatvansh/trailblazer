@@ -55,7 +55,7 @@ public final class TrailblazerCommand {
                 .then(literal("cancel").executes(ctx -> cancelRecording(ctx.getSource())))
                 .then(literal("status").executes(ctx -> showRecordingStatus(ctx.getSource())));
 
-            var trailblazerNode = literal("trailblazer")
+            com.mojang.brigadier.builder.LiteralArgumentBuilder<net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource> trailblazerNode = literal("trailblazer")
                 .executes(ctx -> sendHelp(ctx.getSource()))
                 // Ordered for client-only preference: record -> list -> view -> hide -> info -> rename -> delete -> color -> share -> rendermode -> help
                 .then(recordNode)
@@ -75,7 +75,7 @@ public final class TrailblazerCommand {
                         .executes(ctx -> showInfo(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
                 .then(literal("rename")
                     .then(argument("oldName", StringArgumentType.string())
-                        .suggests(TrailblazerCommand::suggestLocalPathNames)
+                        .suggests(TrailblazerCommand::suggestRenameNames)
                         .then(argument("newName", StringArgumentType.string())
                             .executes(ctx -> renamePath(ctx.getSource(), StringArgumentType.getString(ctx, "oldName"), StringArgumentType.getString(ctx, "newName"))))))
                 .then(literal("delete")
@@ -83,13 +83,13 @@ public final class TrailblazerCommand {
                         .suggests(TrailblazerCommand::suggestPathNames)
                         .executes(ctx -> deletePath(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
                 .then(literal("color")
-                    .then(argument("name", StringArgumentType.greedyString())
+                    .then(argument("name", StringArgumentType.string())
                         .suggests(TrailblazerCommand::suggestPathNames)
                         .then(argument("color", StringArgumentType.string())
                             .suggests(TrailblazerCommand::suggestColorNames)
                             .executes(ctx -> setColor(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "color"))))))
                 .then(literal("share")
-                    .then(argument("name", StringArgumentType.greedyString())
+                    .then(argument("name", StringArgumentType.string())
                         .suggests(TrailblazerCommand::suggestPathNames)
                         .then(argument("players", StringArgumentType.string())
                             .suggests(TrailblazerCommand::suggestPlayerNames)
@@ -124,6 +124,8 @@ public final class TrailblazerCommand {
     }
 
     private static final Map<String, RenderMode> MODE_ALIASES = Map.ofEntries(
+        Map.entry("solid", RenderMode.SOLID_LINE),
+        Map.entry("solid_line", RenderMode.SOLID_LINE),
         Map.entry("trail", RenderMode.DASHED_LINE),
         Map.entry("dashed", RenderMode.DASHED_LINE),
         Map.entry("dash", RenderMode.DASHED_LINE),
@@ -137,6 +139,7 @@ public final class TrailblazerCommand {
     );
 
     private static CompletableFuture<Suggestions> suggestRenderModes(SuggestionsBuilder builder) {
+        builder.suggest("solid");
         builder.suggest("trail");
         builder.suggest("markers");
         builder.suggest("arrows");
@@ -307,19 +310,22 @@ public final class TrailblazerCommand {
         return 1;
     }
 
+    private static CompletableFuture<Suggestions> suggestRenameNames(com.mojang.brigadier.context.CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder) {
+        pathManager.getMyPaths().stream()
+            .filter(p -> {
+                var origin = pathManager.getPathOrigin(p.getPathId());
+                return origin == PathOrigin.LOCAL || origin == PathOrigin.SERVER_OWNED;
+            })
+            .map(PathData::getPathName)
+            .forEach(builder::suggest);
+        return builder.buildFuture();
+    }
+
     private static CompletableFuture<Suggestions> suggestPathNames(com.mojang.brigadier.context.CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder) {
         Stream<String> myPaths = pathManager.getMyPaths().stream().map(PathData::getPathName);
         Stream<String> sharedPaths = pathManager.getSharedPaths().stream().map(PathData::getPathName);
         Stream.concat(myPaths, sharedPaths)
             .distinct()
-            .forEach(builder::suggest);
-        return builder.buildFuture();
-    }
-
-    private static CompletableFuture<Suggestions> suggestLocalPathNames(com.mojang.brigadier.context.CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder) {
-        pathManager.getMyPaths().stream()
-            .filter(p -> pathManager.isLocalPath(p.getPathId()))
-            .map(PathData::getPathName)
             .forEach(builder::suggest);
         return builder.buildFuture();
     }

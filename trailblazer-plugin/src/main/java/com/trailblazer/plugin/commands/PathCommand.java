@@ -400,7 +400,7 @@ public class PathCommand implements CommandExecutor {
             RenderMode currentMode = renderSettingsManager.getRenderMode(player);
             player.sendMessage(Component.text("Your current render mode is " + currentMode.name() + ".", NamedTextColor.GRAY));
             // Show the three canonical, client-friendly aliases for consistency with the client commands
-            player.sendMessage(Component.text("Usage: /path rendermode <trail | arrows>", NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /trailblazer rendermode <trail | arrows>", NamedTextColor.RED));
             return;
         }
 
@@ -470,7 +470,10 @@ public class PathCommand implements CommandExecutor {
             if (path.getOwnerUUID().equals(player.getUniqueId())) {
                 List<String> succeeded = new ArrayList<>();
                 List<String> alreadyHad = new ArrayList<>();
+                List<String> queuedOtherWorld = new ArrayList<>();
                 java.util.Map<String, String> failed = new java.util.HashMap<>();
+
+                java.util.UUID sourceWorldUid = player.getWorld().getUID();
 
                 for (Player targetPlayer : targetPlayers) {
                     if (targetPlayer.getUniqueId().equals(player.getUniqueId())) {
@@ -478,11 +481,19 @@ public class PathCommand implements CommandExecutor {
                         continue;
                     }
 
-                    PathDataManager.SharedCopyResult result = pathDataManager.ensureSharedCopy(path, targetPlayer.getUniqueId(), targetPlayer.getName(), targetPlayer.getWorld().getUID());
+                    PathDataManager.SharedCopyResult result = pathDataManager.ensureSharedCopy(path, targetPlayer.getUniqueId(), targetPlayer.getName(), sourceWorldUid);
                     PathData sharedCopy = result.getPath();
                     if (!result.wasCreated()) {
                         // The target already has a copy (idempotent behavior)
                         alreadyHad.add(targetPlayer.getName());
+                        continue;
+                    }
+
+                    // Avoid cross-world bleeding: only deliver/render immediately if they're in the same world.
+                    if (!sourceWorldUid.equals(targetPlayer.getWorld().getUID())) {
+                        queuedOtherWorld.add(targetPlayer.getName());
+                        targetPlayer.sendMessage(Component.text(player.getName() + " shared a path with you: " + sharedCopy.getPathName() + ". It will appear when you join their world.", NamedTextColor.AQUA));
+                        succeeded.add(targetPlayer.getName());
                         continue;
                     }
 
@@ -513,6 +524,9 @@ public class PathCommand implements CommandExecutor {
                 }
                 if (!alreadyHad.isEmpty()) {
                     player.sendMessage(Component.text(String.join(", ", alreadyHad) + " already have their own copy of this path.", NamedTextColor.YELLOW));
+                }
+                if (!queuedOtherWorld.isEmpty()) {
+                    player.sendMessage(Component.text("Queued for players in another world: " + String.join(", ", queuedOtherWorld) + ".", NamedTextColor.GRAY));
                 }
                 if (!failed.isEmpty()) {
                     StringBuilder sb = new StringBuilder();

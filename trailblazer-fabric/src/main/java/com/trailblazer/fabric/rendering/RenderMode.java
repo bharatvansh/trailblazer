@@ -7,6 +7,7 @@ import net.minecraft.util.Formatting;
  * Path visualization modes.
  */
 public enum RenderMode {
+    SOLID_LINE("Solid Line", Formatting.GREEN),
     DASHED_LINE("Dashed Line", Formatting.GREEN),
     SPACED_MARKERS("Spaced Markers", Formatting.YELLOW),
     DIRECTIONAL_ARROWS("Directional Arrows", Formatting.AQUA);

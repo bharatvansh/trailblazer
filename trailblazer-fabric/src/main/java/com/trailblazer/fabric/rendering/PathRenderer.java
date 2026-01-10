@@ -67,6 +67,7 @@ public class PathRenderer {
         Iterable<PathData> visiblePaths = clientPathManager.getVisiblePaths();
 
         switch (renderSettingsManager.getRenderMode()) {
+            case SOLID_LINE -> renderSolidLines(currentDimension, livePath, visiblePaths, cameraPos, cameraForward);
             case DASHED_LINE -> renderDashedLines(currentDimension, livePath, visiblePaths, cameraPos, cameraForward);
             case SPACED_MARKERS -> renderSpacedMarkers(currentDimension, livePath, visiblePaths, cameraPos, cameraForward);
             case DIRECTIONAL_ARROWS -> renderDirectionalArrows(currentDimension, livePath, visiblePaths, cameraPos, cameraForward);
@@ -83,18 +84,43 @@ public class PathRenderer {
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buffer = tess.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
 
-        boolean any = false;
         if (livePath != null) {
-            any |= appendDashedPath(livePath, true, currentDimension, cameraPos, cameraForward, buffer);
+            appendDashedPath(livePath, true, currentDimension, cameraPos, cameraForward, buffer);
         }
         for (PathData path : visiblePaths) {
-            any |= appendDashedPath(path, false, currentDimension, cameraPos, cameraForward, buffer);
+            appendDashedPath(path, false, currentDimension, cameraPos, cameraForward, buffer);
         }
 
-        BuiltBuffer built = buffer.end();
-        if (any) {
-            RenderLayer.getDebugQuads().draw(built);
+        BuiltBuffer built = buffer.endNullable();
+        if (built == null) {
+            return;
         }
+        RenderLayer.getDebugQuads().draw(built);
+        built.close();
+    }
+
+    private void renderSolidLines(
+            String currentDimension,
+            PathData livePath,
+            Iterable<PathData> visiblePaths,
+            Vec3d cameraPos,
+            Vec3d cameraForward
+    ) {
+        Tessellator tess = Tessellator.getInstance();
+        BufferBuilder buffer = tess.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+
+        if (livePath != null) {
+            appendSolidPath(livePath, true, currentDimension, cameraPos, cameraForward, buffer);
+        }
+        for (PathData path : visiblePaths) {
+            appendSolidPath(path, false, currentDimension, cameraPos, cameraForward, buffer);
+        }
+
+        BuiltBuffer built = buffer.endNullable();
+        if (built == null) {
+            return;
+        }
+        RenderLayer.getDebugQuads().draw(built);
         built.close();
     }
 
@@ -113,18 +139,18 @@ public class PathRenderer {
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buffer = tess.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
 
-        boolean any = false;
         if (livePath != null) {
-            any |= appendMarkerPath(livePath, true, currentDimension, cameraPos, billboardRight, billboardUp, spacing, buffer);
+            appendMarkerPath(livePath, true, currentDimension, cameraPos, billboardRight, billboardUp, spacing, buffer);
         }
         for (PathData path : visiblePaths) {
-            any |= appendMarkerPath(path, false, currentDimension, cameraPos, billboardRight, billboardUp, spacing, buffer);
+            appendMarkerPath(path, false, currentDimension, cameraPos, billboardRight, billboardUp, spacing, buffer);
         }
 
-        BuiltBuffer built = buffer.end();
-        if (any) {
-            RenderLayer.getDebugQuads().draw(built);
+        BuiltBuffer built = buffer.endNullable();
+        if (built == null) {
+            return;
         }
+        RenderLayer.getDebugQuads().draw(built);
         built.close();
     }
 
@@ -140,18 +166,18 @@ public class PathRenderer {
         Tessellator tess = Tessellator.getInstance();
         BufferBuilder buffer = tess.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
 
-        boolean any = false;
         if (livePath != null) {
-            any |= appendArrowPath(livePath, true, currentDimension, cameraPos, cameraForward, spacing, buffer);
+            appendArrowPath(livePath, true, currentDimension, cameraPos, cameraForward, spacing, buffer);
         }
         for (PathData path : visiblePaths) {
-            any |= appendArrowPath(path, false, currentDimension, cameraPos, cameraForward, spacing, buffer);
+            appendArrowPath(path, false, currentDimension, cameraPos, cameraForward, spacing, buffer);
         }
 
-        BuiltBuffer built = buffer.end();
-        if (any) {
-            RenderLayer.getDebugQuads().draw(built);
+        BuiltBuffer built = buffer.endNullable();
+        if (built == null) {
+            return;
         }
+        RenderLayer.getDebugQuads().draw(built);
         built.close();
     }
 
@@ -260,6 +286,96 @@ public class PathRenderer {
                     patternOffset %= DASH_PATTERN_LENGTH;
                 }
             }
+
+            x0 = x1;
+            y0 = y1;
+            z0 = z1;
+        }
+
+        return any;
+    }
+
+    private boolean appendSolidPath(
+            PathData path,
+            boolean isLive,
+            String currentDimension,
+            Vec3d cameraPos,
+            Vec3d cameraForward,
+            BufferBuilder buffer
+    ) {
+        List<Vector3d> points = path.getPoints();
+        if (points.size() < 2) {
+            return false;
+        }
+
+        String dim = path.getDimension();
+        if (dim != null && !dim.isBlank() && !currentDimension.equals(dim)) {
+            return false;
+        }
+
+        final int color = path.getColorArgb();
+        float r = ((color >> 16) & 0xFF) / 255f;
+        float g = ((color >> 8) & 0xFF) / 255f;
+        float b = (color & 0xFF) / 255f;
+        float a = isLive ? 1.0f : 0.9f;
+
+        double camX = cameraPos.x;
+        double camY = cameraPos.y;
+        double camZ = cameraPos.z;
+
+        boolean any = false;
+        double[] right = new double[3];
+
+        Vector3d prev = points.getFirst();
+        double x0 = prev.getX();
+        double y0 = prev.getY();
+        double z0 = prev.getZ();
+
+        for (int i = 1; i < points.size(); i++) {
+            Vector3d next = points.get(i);
+
+            double x1 = next.getX();
+            double y1 = next.getY();
+            double z1 = next.getZ();
+
+            double dx = x1 - x0;
+            double dy = y1 - y0;
+            double dz = z1 - z0;
+            double segLenSq = dx * dx + dy * dy + dz * dz;
+            if (segLenSq < MIN_SEGMENT_LENGTH * MIN_SEGMENT_LENGTH) {
+                x0 = x1;
+                y0 = y1;
+                z0 = z1;
+                continue;
+            }
+
+            double d0x = x0 - camX;
+            double d0y = y0 - camY;
+            double d0z = z0 - camZ;
+            double d1x = x1 - camX;
+            double d1y = y1 - camY;
+            double d1z = z1 - camZ;
+            if ((d0x * d0x + d0y * d0y + d0z * d0z) > MAX_RENDER_DISTANCE_SQ
+                    && (d1x * d1x + d1y * d1y + d1z * d1z) > MAX_RENDER_DISTANCE_SQ) {
+                x0 = x1;
+                y0 = y1;
+                z0 = z1;
+                continue;
+            }
+
+            double segLen = Math.sqrt(segLenSq);
+            double invLen = 1.0 / segLen;
+            double dirX = dx * invLen;
+            double dirY = dy * invLen;
+            double dirZ = dz * invLen;
+
+            stableRightVector(cameraForward, dirX, dirY, dirZ, LINE_HALF_WIDTH, right);
+            double rightX = right[0];
+            double rightY = right[1];
+            double rightZ = right[2];
+
+            addRibbonQuad(buffer, x0, y0, z0, x1, y1, z1, camX, camY, camZ, rightX, rightY, rightZ, r, g, b, a);
+            any = true;
 
             x0 = x1;
             y0 = y1;

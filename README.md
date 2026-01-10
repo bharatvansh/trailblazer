@@ -111,14 +111,14 @@ These commands are available when the Fabric mod is installed. They use client-s
 - `/trailblazer record cancel` — Cancel and discard the current recording.
 - `/trailblazer record status` — Show current recording status.
 - `/trailblazer list` — List your local and shared paths.
-- `/trailblazer view "<path name>"` — Show a path using client renderer.
-- `/trailblazer hide ["<path name>"]` — Hide one path, or omit the name to hide all visible paths.
-- `/trailblazer info "<path name>"` — Show start/end coordinates for a path.
-- `/trailblazer rename "<old name>" "<new name>"` — Rename a local path (syncs to server if server-owned).
-- `/trailblazer delete "<path name>"` — Delete locally or request server deletion for server-owned paths.
-- `/trailblazer color "<path name>" <colorName|#RRGGBB>` — Change color (local update; syncs to server if server-owned).
-- `/trailblazer share "<path name>" <player1,player2,...>` — Send share request to server.
-- `/trailblazer rendermode <trail|markers|arrows>` — Change client render mode.
+- `/trailblazer view <name>` — Show a path using client renderer.
+- `/trailblazer hide [name]` — Hide one path, or omit the name to hide all visible paths.
+- `/trailblazer info <name>` — Show start/end coordinates for a path.
+- `/trailblazer rename <oldName> <newName>` — Rename a local path (syncs to server if server-owned).
+- `/trailblazer delete <name>` — Delete locally or request server deletion for server-owned paths.
+- `/trailblazer color <name> <color>` — Change color (local update; syncs to server if server-owned).
+- `/trailblazer share <name> <player1,player2,...>` — Send share request to server.
+- `/trailblazer rendermode <trail|markers|arrows|solid>` — Change client render mode.
 - `/tbl` — Alias for `/trailblazer`.
 
 ### Server-Side Commands - For Players Without Client Mod
@@ -130,14 +130,14 @@ These commands are available when the server plugin is installed and are designe
 - `/trailblazer record cancel` — Cancel and discard the current recording.
 - `/trailblazer record status` — Show current recording status.
 - `/trailblazer list` — List your saved paths.
-- `/trailblazer view "<path name>"` — Show a path using server particle rendering.
+- `/trailblazer view <name>` — Show a path using server particle rendering.
 - `/trailblazer hide` — Hide the current path.
-- `/trailblazer info "<path name>"` — Show start/end coordinates for a path.
-- `/trailblazer rename "<old name>" "<new name>"` — Rename a path you own.
-- `/trailblazer delete "<path name>"` — Delete a path you own.
-- `/trailblazer color "<path name>" <colorName|#RRGGBB>` — Change the color of a path.
+- `/trailblazer info <name>` — Show start/end coordinates for a path.
+- `/trailblazer rename <oldName> <newName>` — Rename a path you own.
+- `/trailblazer delete <name>` — Delete a path you own.
+- `/trailblazer color <name> <color>` — Change the color of a path.
 - `/trailblazer spacing <blocks>` — Set marker spacing for server rendering (e.g., `3.0`).
-- `/trailblazer share "<path name>" <player1,player2,...>` — Share a path with other players.
+- `/trailblazer share <name> <player1,player2,...>` — Share a path with other players.
 - `/trailblazer rendermode <trail|arrows>` — Change server render mode.
 - `/tbl` — Alias for `/trailblazer`.
 

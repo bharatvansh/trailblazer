@@ -17,6 +17,9 @@ public record SharedPathPayload(PathData path) implements CustomPayload {
             new Id<>(Identifier.of(TrailblazerFabricClient.MOD_ID, "share_path"));
     private static final Gson GSON = new GsonBuilder().create();
 
+    // Defensive cap: shared paths can be large, but should never be unbounded.
+    private static final int MAX_JSON_BYTES = 1_048_576;
+
     public static final PacketCodec<RegistryByteBuf, SharedPathPayload> CODEC = PacketCodec.of(
             SharedPathPayload::write,
             SharedPathPayload::read
@@ -31,6 +34,9 @@ public record SharedPathPayload(PathData path) implements CustomPayload {
 
     private static SharedPathPayload read(RegistryByteBuf buf) {
         int length = buf.readVarInt();
+        if (length < 0 || length > MAX_JSON_BYTES || length > buf.readableBytes()) {
+            throw new IllegalStateException("Invalid shared path payload length: " + length);
+        }
         byte[] data = new byte[length];
         buf.readBytes(data);
         PathData path = GSON.fromJson(new String(data, StandardCharsets.UTF_8), PathData.class);

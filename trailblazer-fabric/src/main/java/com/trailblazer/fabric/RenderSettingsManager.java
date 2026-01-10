@@ -11,7 +11,7 @@ import net.minecraft.text.Text;
  */
 public class RenderSettingsManager {
 
-    private RenderMode currentMode = RenderMode.DASHED_LINE;
+    private RenderMode currentMode = RenderMode.SOLID_LINE;
     private double markerSpacing = 1.0;
 
     public RenderMode getRenderMode() {

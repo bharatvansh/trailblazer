@@ -55,6 +55,9 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
     private static final long RESEND_INTERVAL_MS = 2000L;
     private static final int MAX_RETRY_ATTEMPTS = 5;
 
+    /** Defensive cap against malicious/buggy clients attempting huge recipient fan-outs. */
+    private static final int MAX_SHARE_TARGETS = 64;
+
     private final PathDataManager dataManager;
     private final Map<UUID, ReliableMessageState> reliableStates = new ConcurrentHashMap<>();
 
@@ -425,11 +428,16 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             ByteBuffer buffer = ByteBuffer.wrap(message);
             UUID pathId = new UUID(buffer.getLong(), buffer.getLong());
             int playerCount = readVarInt(buffer);
+            if (playerCount < 0 || playerCount > MAX_SHARE_TARGETS) {
+                throw new IllegalArgumentException("Invalid recipient count: " + playerCount);
+            }
             List<UUID> playerIds = new ArrayList<>();
             for (int i = 0; i < playerCount; i++) {
                 playerIds.add(new UUID(buffer.getLong(), buffer.getLong()));
             }
 
+            // Shared copies are scoped to the *source* world. The recipient may be elsewhere (or offline),
+            // but persistence must follow the world the path actually belongs to.
             java.util.UUID senderWorldUid = sender.getWorld().getUID();
             List<PathData> paths = dataManager.loadPaths(senderWorldUid, sender.getUniqueId());
             paths.stream()
@@ -438,30 +446,45 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 .ifPresentOrElse(path -> {
                     List<String> newlyShared = new ArrayList<>();
                     List<String> alreadyHad = new ArrayList<>();
-                    List<String> offlinePlayers = new ArrayList<>();
+                    List<String> queuedOffline = new ArrayList<>();
+                    List<String> queuedOtherWorld = new ArrayList<>();
 
                     for (UUID targetPlayerId : playerIds) {
-                        // Skip offline players to avoid world mismatch issues
-                        Player targetOnline = plugin.getServer().getPlayer(targetPlayerId);
-                        if (targetOnline == null || !targetOnline.isOnline()) {
-                            String targetName = resolvePlayerName(targetPlayerId);
-                            offlinePlayers.add(targetName);
+                        if (targetPlayerId == null || targetPlayerId.equals(sender.getUniqueId())) {
                             continue;
                         }
 
-                        String targetName = targetOnline.getName();
-                        java.util.UUID targetWorldUid = targetOnline.getWorld().getUID();
-                        
-                        PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetPlayerId, targetName, targetWorldUid);
+                        Player targetOnline = plugin.getServer().getPlayer(targetPlayerId);
+                        String targetName = (targetOnline != null && targetOnline.isOnline())
+                                ? targetOnline.getName()
+                                : resolvePlayerName(targetPlayerId);
+
+                        // Persist in the sender's world folder (source world). This allows offline recipients
+                        // to receive the shared path on next join, and prevents storing paths in unrelated worlds.
+                        PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetPlayerId, targetName, senderWorldUid);
                         if (!result.wasCreated()) {
                             alreadyHad.add(targetName);
                             continue;
                         }
 
+                        PathData sharedCopy = result.getPath();
+                        newlyShared.add(targetName);
+
+                        if (targetOnline == null || !targetOnline.isOnline()) {
+                            queuedOffline.add(targetName);
+                            continue;
+                        }
+
+                        // Avoid cross-world bleeding: only deliver/render immediately if they're in the same world.
+                        java.util.UUID targetWorldUid = targetOnline.getWorld().getUID();
+                        if (!senderWorldUid.equals(targetWorldUid)) {
+                            queuedOtherWorld.add(targetName);
+                            targetOnline.sendMessage(Component.text(sender.getName() + " shared a path with you: " + sharedCopy.getPathName() + ". It will appear when you join their world.", NamedTextColor.AQUA));
+                            continue;
+                        }
+
                         boolean targetIsModded = isModdedPlayer(targetOnline);
                         // Note: sharedWith is no longer used - all recipients get owned copies via ensureSharedCopy()
-
-                        PathData sharedCopy = result.getPath();
                         if (targetIsModded) {
                             sendSharePath(targetOnline, sharedCopy);
                             targetOnline.sendMessage(Component.text(sender.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
@@ -470,7 +493,6 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                             targetOnline.sendMessage(Component.text(sender.getName() + " has shared a path with you: " + sharedCopy.getPathName(), NamedTextColor.AQUA));
                             targetOnline.sendMessage(Component.text("It is now being displayed. Use '/path hide' to hide it or '/path view " + sharedCopy.getPathName() + "' to see it again.", NamedTextColor.GRAY));
                         }
-                        newlyShared.add(targetName);
                     }
 
                     boolean success = !newlyShared.isEmpty();
@@ -484,11 +506,17 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                         }
                         response.append(String.join(", ", alreadyHad)).append(" already had their own copy.");
                     }
-                    if (!offlinePlayers.isEmpty()) {
+                    if (!queuedOffline.isEmpty()) {
                         if (response.length() > 0) {
                             response.append(' ');
                         }
-                        response.append("Skipped offline players: ").append(String.join(", ", offlinePlayers)).append('.');
+                        response.append("Queued for offline players: ").append(String.join(", ", queuedOffline)).append('.');
+                    }
+                    if (!queuedOtherWorld.isEmpty()) {
+                        if (response.length() > 0) {
+                            response.append(' ');
+                        }
+                        response.append("Queued for players in another world: ").append(String.join(", ", queuedOtherWorld)).append('.');
                     }
                     if (response.length() == 0) {
                         response.append("Selected players already have this path.");
@@ -536,6 +564,9 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
         try {
             ByteBuffer buffer = ByteBuffer.wrap(message);
             int targetCount = readVarInt(buffer);
+            if (targetCount < 0 || targetCount > MAX_SHARE_TARGETS) {
+                throw new IllegalArgumentException("Invalid recipient count: " + targetCount);
+            }
             List<UUID> targets = new ArrayList<>(targetCount);
             for (int i = 0; i < targetCount; i++) {
                 targets.add(new UUID(buffer.getLong(), buffer.getLong()));
@@ -545,31 +576,42 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
             if (path == null || !PathDataManager.isValidPathData(path)) {
                 throw new IllegalArgumentException("Received invalid shared path data");
             }
+
+            // Trust boundary: a client may spoof owner fields in JSON. For sharing, require the sender to be the owner
+            // of the submitted path (shared copies are owned by recipients in the current design).
+            if (!sender.getUniqueId().equals(path.getOwnerUUID())) {
+                sendActionResult(sender, "share", null, false, "You can only share paths that you own.", null);
+                return;
+            }
+
             if (path.getOriginPathId() == null || path.getOriginOwnerUUID() == null || path.getOriginOwnerName() == null) {
                 path.setOrigin(path.getPathId(), sender.getUniqueId(), sender.getName());
             }
 
             // For both modded and unmodded recipients: ensure a shared copy exists.
             // If the recipient is modded and online, also deliver over the custom channel.
-            // NOTE: Only online players can receive shared paths to avoid world mismatch issues.
+            // NOTE: Only recipients in the same world can receive immediate delivery/rendering to avoid cross-world visuals.
             List<String> newlyShared = new ArrayList<>();
             List<String> alreadyHad = new ArrayList<>();
-            List<String> offlinePlayers = new ArrayList<>();
+            List<String> queuedOffline = new ArrayList<>();
+            List<String> queuedOtherWorld = new ArrayList<>();
             int moddedDelivered = 0;
 
+            java.util.UUID senderWorldUid = sender.getWorld().getUID();
+
             for (UUID targetId : targets) {
-                // Skip offline players to avoid world mismatch issues
-                Player targetOnline = plugin.getServer().getPlayer(targetId);
-                if (targetOnline == null || !targetOnline.isOnline()) {
-                    String targetName = resolvePlayerName(targetId);
-                    offlinePlayers.add(targetName);
+                if (targetId == null || targetId.equals(sender.getUniqueId())) {
                     continue;
                 }
 
-                String targetName = targetOnline.getName();
-                java.util.UUID targetWorldUid = targetOnline.getWorld().getUID();
+                Player targetOnline = plugin.getServer().getPlayer(targetId);
+                String targetName = (targetOnline != null && targetOnline.isOnline())
+                        ? targetOnline.getName()
+                        : resolvePlayerName(targetId);
 
-                PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetId, targetName, targetWorldUid);
+                // Persist in sender's current world folder. This makes sharing work for offline recipients,
+                // and avoids persisting a path into a recipient's unrelated current world.
+                PathDataManager.SharedCopyResult result = dataManager.ensureSharedCopy(path, targetId, targetName, senderWorldUid);
                 PathData sharedCopy = result.getPath();
                 if (!result.wasCreated()) {
                     alreadyHad.add(targetName);
@@ -577,6 +619,19 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 }
 
                 newlyShared.add(targetName);
+
+                if (targetOnline == null || !targetOnline.isOnline()) {
+                    queuedOffline.add(targetName);
+                    continue;
+                }
+
+                java.util.UUID targetWorldUid = targetOnline.getWorld().getUID();
+                if (!senderWorldUid.equals(targetWorldUid)) {
+                    queuedOtherWorld.add(targetName);
+                    targetOnline.sendMessage(Component.text(sender.getName() + " shared a path with you: " + sharedCopy.getPathName() + ". It will appear when you join their world.", NamedTextColor.AQUA));
+                    continue;
+                }
+
                 boolean targetIsModded = isModdedPlayer(targetOnline);
                 if (targetIsModded) {
                     // Deliver to modded clients via payload
@@ -600,9 +655,13 @@ public class ServerPacketHandler implements Listener, PluginMessageListener {
                 if (response.length() > 0) response.append(' ');
                 response.append(String.join(", ", alreadyHad)).append(" already had their own copy.");
             }
-            if (!offlinePlayers.isEmpty()) {
+            if (!queuedOffline.isEmpty()) {
                 if (response.length() > 0) response.append(' ');
-                response.append("Skipped offline players: ").append(String.join(", ", offlinePlayers)).append('.');
+                response.append("Queued for offline players: ").append(String.join(", ", queuedOffline)).append('.');
+            }
+            if (!queuedOtherWorld.isEmpty()) {
+                if (response.length() > 0) response.append(' ');
+                response.append("Queued for players in another world: ").append(String.join(", ", queuedOtherWorld)).append('.');
             }
             if (response.length() == 0) {
                 // Nobody received a new copy, but if some were online+modded we still delivered
