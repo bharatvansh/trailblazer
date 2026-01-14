@@ -10,11 +10,12 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 
 public class KeyBindingManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(KeyBindingManager.class);
 
-    private static final String KEY_CATEGORY = "key.categories.trailblazer";
+    private static final KeyBinding.Category KEY_CATEGORY = KeyBinding.Category.create(Identifier.of("trailblazer", "trailblazer"));
 
     private static KeyBinding toggleRecordingKey;
     private static KeyBinding cycleRenderModeKey;

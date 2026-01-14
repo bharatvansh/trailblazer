@@ -155,7 +155,7 @@ public final class TrailblazerCommand {
         var handler = net.minecraft.client.MinecraftClient.getInstance().getNetworkHandler();
         if (handler != null) {
             handler.getPlayerList().stream()
-                .map(p -> p.getProfile().getName())
+                .map(p -> p.getProfile().name())
                 .forEach(builder::suggest);
         }
         return builder.buildFuture();
@@ -242,9 +242,9 @@ public final class TrailblazerCommand {
             String nameTrim = p.trim();
             if (nameTrim.isEmpty()) continue;
             for (var entry : handler.getPlayerList()) {
-                if (entry.getProfile().getName().equalsIgnoreCase(nameTrim)) {
-                    recipients.add(entry.getProfile().getId());
-                    matchedNames.add(entry.getProfile().getName());
+                if (entry.getProfile().name().equalsIgnoreCase(nameTrim)) {
+                    recipients.add(entry.getProfile().id());
+                    matchedNames.add(entry.getProfile().name());
                     break;
                 }
             }

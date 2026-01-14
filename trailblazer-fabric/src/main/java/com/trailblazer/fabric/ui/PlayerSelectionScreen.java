@@ -42,14 +42,14 @@ public class PlayerSelectionScreen extends Screen {
         int y = Math.max(40, this.height / 2 - (onlinePlayers.size() * (buttonHeight + 5)) / 2);
 
         for (PlayerListEntry playerEntry : onlinePlayers) {
-            UUID playerUUID = playerEntry.getProfile().getId();
-            ButtonWidget playerButton = ButtonWidget.builder(Text.of(playerEntry.getProfile().getName()), button -> {
+            UUID playerUUID = playerEntry.getProfile().id();
+            ButtonWidget playerButton = ButtonWidget.builder(Text.of(playerEntry.getProfile().name()), button -> {
                 if (selectedPlayers.contains(playerUUID)) {
                     selectedPlayers.remove(playerUUID);
-                    button.setMessage(Text.of(playerEntry.getProfile().getName()));
+                    button.setMessage(Text.of(playerEntry.getProfile().name()));
                 } else {
                     selectedPlayers.add(playerUUID);
-                    button.setMessage(Text.of("[X] " + playerEntry.getProfile().getName()));
+                    button.setMessage(Text.of("[X] " + playerEntry.getProfile().name()));
                 }
                 updateShareState();
             }).dimensions(buttonX, y, buttonWidth, buttonHeight).build();

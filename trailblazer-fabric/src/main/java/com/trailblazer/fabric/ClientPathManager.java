@@ -171,7 +171,9 @@ public class ClientPathManager {
         UUID id = UUID.randomUUID();
         UUID ownerUuid = localPlayerUuid != null ? localPlayerUuid : (client.getSession() != null ? client.getSession().getUuidOrNull() : UUID.randomUUID());
         String ownerName = resolveLocalPlayerName("Player");
-        String dimension = client.player.getWorld().getRegistryKey().getValue().toString();
+        String dimension = client.world != null
+            ? client.world.getRegistryKey().getValue().toString()
+            : "minecraft:overworld";
         localRecording = new PathData(id, "Path-" + indexToLetters(nextPathIndex), ownerUuid, ownerName, System.currentTimeMillis(), dimension, new ArrayList<>());
         addMyPath(localRecording);
         setPathVisible(localRecording.getPathId());

@@ -17,6 +17,9 @@ import java.util.List;
 public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> {
     private double targetScrollAmount = -1.0;
     private double scrollVelocity = 0.0;
+    private int lastMouseX;
+    private int lastMouseY;
+    private float lastTickDelta;
     private static final double FRICTION_PER_SEC = 1.2;
     private static final double MIN_VELOCITY = 0.05;
     private static final double MAX_VELOCITY = 500.0;
@@ -78,6 +81,10 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
 
     @Override
     protected void renderList(DrawContext context, int mouseX, int mouseY, float delta) {
+        this.lastMouseX = mouseX;
+        this.lastMouseY = mouseY;
+        this.lastTickDelta = delta;
+
         int left = 0;
         int right = this.width;
         int top = this.getY();
@@ -143,16 +150,11 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
     }
 
     @Override
-    protected void renderDecorations(DrawContext context, int mouseX, int mouseY) {
-        super.renderDecorations(context, mouseX, mouseY);
-    }
-
-    @Override
     protected void drawHeaderAndFooterSeparators(DrawContext context) {
     }
 
     @Override
-    protected void drawSelectionHighlight(DrawContext context, int a, int b, int c, int d, int e) {
+    protected void drawSelectionHighlight(DrawContext context, PathEntry entry, int y) {
     }
 
     @Override
@@ -253,25 +255,30 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
-            int bgLeft = x + 4;
-            int bgRight = x + entryWidth - 4;
-            int rowTop = y;
-            int rowContentBottom = y + entryHeight;
-            int fullRowBottom = rowTop + PathListWidget.this.itemHeight;
-            int rowBottom = Math.max(rowContentBottom, fullRowBottom);
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            // In modern MC versions, list entries receive (mouseX, mouseY) here.
+            // The entry's actual position is managed by EntryListWidget via getX/getY/getWidth/getHeight.
+
+            tickDelta = PathListWidget.this.lastTickDelta;
+
+            int rowLeft = this.getX();
+            int rowTop = this.getY();
+            int rowRight = rowLeft + this.getWidth();
+            int rowBottom = rowTop + this.getHeight();
+
+            // Keep a small inset so the rows breathe a bit inside the list container.
+            int bgLeft = rowLeft + 4;
+            int bgRight = rowRight - 4;
 
             int bgColor = hovered ? ROW_BG_HOVER : ROW_BG;
             context.fill(bgLeft, rowTop, bgRight, rowBottom, bgColor);
 
-            context.fill(bgLeft, rowTop, bgRight, rowTop + 1, SEPARATOR);
-            if (index == PathListWidget.this.getEntryCount() - 1) {
-                context.fill(bgLeft, rowBottom - 1, bgRight, rowBottom, SEPARATOR);
-            }
+            // Single separator line per row (bottom) to avoid double-thick separators between rows.
+            context.fill(bgLeft, rowBottom - 1, bgRight, rowBottom, SEPARATOR);
 
             final int topPadding = 4;
             final int buttonYOffset = topPadding;
-            final int textBaselineY = topPadding + y + 5;
+            final int textBaselineY = rowTop + topPadding + 5;
             int baseX = bgLeft + 4;
 
             if (origin != null) {
@@ -293,7 +300,8 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
             if (textRenderer.getWidth(displayName) > availableTextWidth) {
                 displayName = textRenderer.trimToWidth(displayName, availableTextWidth - textRenderer.getWidth("...")) + "...";
             }
-            context.drawText(textRenderer, displayName, baseX, textBaselineY, 0xFFFFFFFF, true);
+            // Avoid text shadow here; users reported it looks like duplicated text.
+            context.drawText(textRenderer, displayName, baseX, textBaselineY, 0xFFFFFFFF, false);
             if (!isMyPath || origin == PathOrigin.SERVER_SHARED) {
                 String ownerName = null;
                 String ownerText = null;
@@ -318,12 +326,12 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                     if (textRenderer.getWidth(ownerText) > remainingWidth) {
                         ownerText = textRenderer.trimToWidth(ownerText, remainingWidth - textRenderer.getWidth("...")) + "...";
                     }
-                    context.drawTextWithShadow(textRenderer, ownerText, ownerX, textBaselineY, 0xFF999999);
+                    context.drawText(textRenderer, ownerText, ownerX, textBaselineY, 0xFF999999, false);
                 }
             }
 
             int buttonX = bgRight - (buttonWidth + 2);
-            int buttonY = y + buttonYOffset;
+            int buttonY = rowTop + buttonYOffset;
             toggleButton.setX(buttonX); toggleButton.setY(buttonY); toggleButton.setWidth(buttonWidth); toggleButton.setHeight(buttonHeight);
             toggleButton.render(context, mouseX, mouseY, tickDelta);
             if (isMyPath) {
@@ -438,9 +446,10 @@ public class PathListWidget extends ElementListWidget<PathListWidget.PathEntry> 
                 distanceX = maxDistanceX;
             }
 
-            context.drawTextWithShadow(tr, startText, startX, yCoord, 0xFF808080);
-            context.drawTextWithShadow(tr, distanceText, distanceX, yCoord, 0xFF606060);
-            context.drawTextWithShadow(tr, endText, endX, yCoord, 0xFF808080);
+            // No shadow here either; keep list text crisp and avoid the "double text" look.
+            context.drawText(tr, startText, startX, yCoord, 0xFFB0B0B0, false);
+            context.drawText(tr, distanceText, distanceX, yCoord, 0xFF909090, false);
+            context.drawText(tr, endText, endX, yCoord, 0xFFB0B0B0, false);
         }
     }
 }

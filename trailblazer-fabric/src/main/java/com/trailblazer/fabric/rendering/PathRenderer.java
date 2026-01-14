@@ -8,12 +8,12 @@ import com.trailblazer.api.Vector3d;
 import com.trailblazer.fabric.ClientPathManager;
 import com.trailblazer.fabric.RenderSettingsManager;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.world.ClientWorld;
@@ -52,15 +52,19 @@ public class PathRenderer {
     }
 
     public void initialize() {
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(this::renderActivePaths);
+        // Render late in the main world pass so our overlays aren't immediately overwritten.
+        WorldRenderEvents.END_MAIN.register(this::renderActivePaths);
     }
 
     private void renderActivePaths(WorldRenderContext context) {
-        ClientWorld world = (ClientWorld) context.world();
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientWorld world = client.world;
+        if (world == null) {
+            return;
+        }
         String currentDimension = world.getRegistryKey().getValue().toString();
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
+        Vec3d cameraPos = client.gameRenderer.getCamera().getCameraPos();
         Vec3d cameraForward = getCameraForward(client);
 
         PathData livePath = clientPathManager.getLivePath();
@@ -95,7 +99,7 @@ public class PathRenderer {
         if (built == null) {
             return;
         }
-        RenderLayer.getDebugQuads().draw(built);
+        RenderLayers.debugQuads().draw(built);
         built.close();
     }
 
@@ -120,7 +124,7 @@ public class PathRenderer {
         if (built == null) {
             return;
         }
-        RenderLayer.getDebugQuads().draw(built);
+        RenderLayers.debugQuads().draw(built);
         built.close();
     }
 
@@ -150,7 +154,7 @@ public class PathRenderer {
         if (built == null) {
             return;
         }
-        RenderLayer.getDebugQuads().draw(built);
+        RenderLayers.debugQuads().draw(built);
         built.close();
     }
 
@@ -177,7 +181,7 @@ public class PathRenderer {
         if (built == null) {
             return;
         }
-        RenderLayer.getDebugQuads().draw(built);
+        RenderLayers.debugQuads().draw(built);
         built.close();
     }
 

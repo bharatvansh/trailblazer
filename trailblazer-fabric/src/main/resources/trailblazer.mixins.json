@@ -3,9 +3,7 @@
   "minVersion": "0.8",
   "package": "com.trailblazer.fabric.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": [
-    "EntryListWidgetMixin"
-  ],
+  "client": [],
   "injectors": {
     "defaultRequire": 1
   }

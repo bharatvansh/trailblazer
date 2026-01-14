@@ -7,16 +7,18 @@ plugins {
 // This was what was getting lost before.
 dependencies {
     // We need the Paper API to write the plugin code.
-    compileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
+    compileOnly 'io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT'
 
     // We need our own API module.
     implementation project(':trailblazer-api')
 
     // We need the Gson library for handling JSON.
-    implementation 'com.google.code.gson:gson:2.10.1'
+    // changed to compileOnly because Paper provides it
+    compileOnly 'com.google.code.gson:gson:2.10.1'
 
     // We need the Netty library for byte buffer manipulation.
-    implementation 'io.netty:netty-buffer:4.1.97.Final'
+    // changed to compileOnly because Paper provides it
+    compileOnly 'io.netty:netty-buffer:4.1.97.Final'
 
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -35,8 +37,9 @@ processResources {
 
 // This configures the shadowJar task to bundle and relocate Gson.
 shadowJar {
-    relocate 'com.google.gson', 'com.trailblazer.plugin.libs.gson'
-    relocate 'io.netty', 'com.trailblazer.plugin.libs.netty'
+    // Relocations removed because we are now using compileOnly (server provided libs)
+    // relocate 'com.google.gson', 'com.trailblazer.plugin.libs.gson'
+    // relocate 'io.netty', 'com.trailblazer.plugin.libs.netty'
     archiveClassifier.set('')
 }
 

@@ -118,9 +118,12 @@ public class PathCreationScreen extends Screen {
                 }
             } else {
                 UUID ownerUuid = pathManager.getLocalPlayerUuid() != null ? pathManager.getLocalPlayerUuid() : UUID.randomUUID();
-                String ownerName = MinecraftClient.getInstance().player != null ? MinecraftClient.getInstance().player.getGameProfile().getName() : "Player";
-                String dimension = MinecraftClient.getInstance().player != null ?
-                        MinecraftClient.getInstance().player.getWorld().getRegistryKey().getValue().toString() : "minecraft:overworld";
+                String ownerName = MinecraftClient.getInstance().player != null
+                    ? MinecraftClient.getInstance().player.getGameProfile().name()
+                    : "Player";
+                String dimension = MinecraftClient.getInstance().world != null
+                    ? MinecraftClient.getInstance().world.getRegistryKey().getValue().toString()
+                    : "minecraft:overworld";
                 PathData newPath = new PathData(UUID.randomUUID(), name, ownerUuid, ownerName, System.currentTimeMillis(), dimension, List.of());
                 if (workingColor != 0) {
                     newPath.setColorArgb(workingColor);
